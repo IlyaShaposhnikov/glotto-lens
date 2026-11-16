@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Ilya Shaposhnikov" }]
-dependencies = []
+dependencies = [
+    "beautifulsoup4>=4.12",
+]
 
 [project.optional-dependencies]
 dev = [
