@@ -63,7 +63,7 @@ CREATE TABLE codes (
 CREATE TABLE feature_values (
     source TEXT NOT NULL,
     source_language_id TEXT NOT NULL,
-    glottocode TEXT NOT NULL,
+    glottocode TEXT,
     feature_id TEXT NOT NULL REFERENCES features (id),
     value TEXT,
     code_id TEXT REFERENCES codes (id),
@@ -93,6 +93,7 @@ CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
 CREATE INDEX idx_values_feature ON feature_values (feature_id);
 CREATE INDEX idx_names_name ON names (name COLLATE NOCASE);
 CREATE INDEX idx_blocks_chapter ON blocks (chapter_id);
+CREATE INDEX idx_blocks_feature ON blocks (feature_id);
 CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
 """
 
@@ -120,8 +121,9 @@ REPORT = {
             WHERE source = 'wals' AND glottocode IS NOT NULL
             INTERSECT
             SELECT glottocode FROM source_languages WHERE source = 'grambank')""",
-    "Values: total / unknown ('?')": """
-        SELECT source, COUNT(*), SUM(value = '?') FROM feature_values GROUP BY source""",
+    "Values: total / unknown ('?') / language without glottocode": """
+        SELECT source, COUNT(*), SUM(value = '?'), SUM(glottocode IS NULL)
+        FROM feature_values GROUP BY source""",
     "Glottolog features": """
         SELECT local_id, name FROM features WHERE source = 'glottolog'""",
     "Names by language tag (top 10)": """
@@ -148,6 +150,10 @@ def _text(value: str | None) -> str | None:
 
 def _number(value: str | None) -> float | None:
     return float(value) if value else None
+
+
+def _languages(count: int) -> str:
+    return f"{count} language" if count == 1 else f"{count} languages"
 
 
 def load_languoids(conn: sqlite3.Connection, archive: Path) -> None:
@@ -229,9 +235,17 @@ def load_structure(conn: sqlite3.Connection, source: Source, archive: Path) -> N
                 _text(row["Comment"]),
             )
             for row in read_table(archive, "values.csv")
-            if glottocodes.get(row["Language_ID"])
         ),
     )
+
+
+def value_distribution(conn: sqlite3.Connection, feature_id: str, release: str) -> str:
+    """Render the value counts of a feature, labelled as computed from the data."""
+    counts = conn.execute(VALUE_COUNTS, (feature_id,)).fetchall()
+    lines = [f"Distribution in {release} data:"]
+    lines += [f"- {name}: {_languages(count)}" for name, count in counts]
+    lines.append(f"Total: {_languages(sum(count for _, count in counts))}")
+    return "\n".join(lines)
 
 
 def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
@@ -249,7 +263,7 @@ def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
         if path not in members:
             continue
         page = "supplement" if row["ID"].startswith("s") else "chapter"
-        url = f"https://wals.info/{page}/{row['ID'].lstrip('s')}"
+        url = f"https://wals.info/{page}/{row['ID'].removeprefix('s')}"
         conn.execute(
             "INSERT INTO chapters VALUES (?, ?, ?, ?, ?)",
             (row["ID"], row["Name"], _text(row["Contributor"]), _text(row["Citation"]), url),
@@ -258,9 +272,8 @@ def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
             feature_id = f"wals:{block.feature}" if block.feature else None
             text = block.text
             if feature_id in features:
-                counts = conn.execute(VALUE_COUNTS, (feature_id,))
-                lines = [f"- {name}: {count} languages" for name, count in counts]
-                text = "\n".join([text, *lines])
+                release = f"WALS {WALS.tag}"
+                text = f"{text}\n{value_distribution(conn, feature_id, release)}"
             else:
                 feature_id = None
             cursor = conn.execute(

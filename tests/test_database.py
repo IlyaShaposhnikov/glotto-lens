@@ -51,7 +51,8 @@ def structure(languages, feature_id, values):
         "languages.csv": languages,
         "parameters.csv": [{"ID": feature_id, "Name": "Feature", "Description": "Text"}],
         "codes.csv": [
-            {"ID": f"{feature_id}-1", "Parameter_ID": feature_id, "Name": "yes", "Description": ""}
+            {"ID": f"{feature_id}-1", "Parameter_ID": feature_id, "Name": "yes", "Description": ""},
+            {"ID": f"{feature_id}-2", "Parameter_ID": feature_id, "Name": "no", "Description": ""},
         ],
         "values.csv": [
             {
@@ -59,7 +60,7 @@ def structure(languages, feature_id, values):
                 "Language_ID": language,
                 "Parameter_ID": feature_id,
                 "Value": value,
-                "Code_ID": "" if value == "?" else f"{feature_id}-1",
+                "Code_ID": "" if value == "?" else f"{feature_id}-{value}",
                 "Comment": "",
             }
             for language, value in values
@@ -74,16 +75,17 @@ def archives(tmp_path):
         languoid("basq1248", "Basque", "language"),
         languoid("indo1319", "Indo-European", "family"),
     ]
-    glottolog = structure(languoids, "level", [("russ1263", "language")])
+    glottolog = structure(languoids, "level", [("russ1263", "1")])
     glottolog["names.csv"] = [
         {"ID": "1", "Language_ID": "russ1263", "Name": "русский", "Provider": "x", "lang": "ru"}
     ]
     grambank = structure(languoids[:2], "GB020", [("russ1263", "1"), ("basq1248", "?")])
     wals_languages = [
         {"ID": "rus", "Name": "Russian", "Glottocode": "russ1263"},
+        {"ID": "bsq", "Name": "Basque", "Glottocode": "basq1248"},
         {"ID": "xxx", "Name": "Unmapped", "Glottocode": ""},
     ]
-    wals = structure(wals_languages, "1A", [("rus", "1"), ("xxx", "1")])
+    wals = structure(wals_languages, "1A", [("rus", "1"), ("bsq", "2"), ("xxx", "1")])
     wals["chapters.csv"] = [
         {"ID": "1", "Name": "Chapter", "Contributor": "A. Author", "Citation": "Cite"},
         {"ID": "s4", "Name": "No HTML", "Contributor": "", "Citation": ""},
@@ -111,8 +113,16 @@ def test_feature_ids_are_prefixed_with_source(db_path):
 
 
 def test_values_are_keyed_by_glottocode(db_path):
-    rows = query(db_path, "SELECT glottocode, code_id FROM feature_values WHERE source = 'wals'")
-    assert rows == [("russ1263", "wals:1A-1")]
+    rows = query(
+        db_path,
+        "SELECT source_language_id, glottocode, code_id FROM feature_values "
+        "WHERE source = 'wals' ORDER BY source_language_id",
+    )
+    assert rows == [
+        ("bsq", "basq1248", "wals:1A-2"),
+        ("rus", "russ1263", "wals:1A-1"),
+        ("xxx", None, "wals:1A-1"),
+    ]
 
 
 def test_unmapped_language_is_kept_for_reporting(db_path):
@@ -127,8 +137,10 @@ def test_empty_coordinates_become_null(db_path):
 
 def test_report_counts_overlap_and_unknown_values(db_path):
     result = report(db_path)
-    assert result["Glottocodes shared by WALS and Grambank"] == [(1,)]
-    assert ("grambank", 2, 1) in result["Values: total / unknown ('?')"]
+    assert result["Glottocodes shared by WALS and Grambank"] == [(2,)]
+    values = result["Values: total / unknown ('?') / language without glottocode"]
+    assert ("grambank", 2, 1, 0) in values
+    assert ("wals", 3, 0, 1) in values
 
 
 def test_dangling_code_reference_is_rejected(tmp_path, archives):
@@ -145,11 +157,18 @@ def test_chapter_without_html_is_skipped(db_path):
     assert query(db_path, "SELECT id, url FROM chapters") == [("1", "https://wals.info/chapter/1")]
 
 
-def test_value_table_block_lists_codes_with_language_counts(db_path):
+def test_value_table_block_shows_labelled_distribution(db_path):
     rows = query(db_path, "SELECT kind, section, text, feature_id FROM blocks ORDER BY position")
+    distribution = (
+        "Values of Map 1A.\n"
+        "Distribution in WALS v2020.6 data:\n"
+        "- yes: 2 languages\n"
+        "- no: 1 language\n"
+        "Total: 3 languages"
+    )
     assert rows == [
         ("paragraph", "1. Intro", "Russian text.", None),
-        ("values", "1. Intro", "Values of Map 1A.\n- yes: 1 languages", "wals:1A"),
+        ("values", "1. Intro", distribution, "wals:1A"),
     ]
 
 
