@@ -6,6 +6,7 @@ from contextlib import closing
 from pathlib import Path
 
 from glotto_lens.chapters import parse_chapter
+from glotto_lens.documents import load_documents
 from glotto_lens.sources import (
     GLOTTOLOG,
     SOURCES,
@@ -89,12 +90,33 @@ CREATE TABLE block_languages (
     block_id INTEGER NOT NULL REFERENCES blocks (id),
     glottocode TEXT NOT NULL
 );
+CREATE TABLE documents (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    section TEXT NOT NULL,
+    text TEXT NOT NULL
+);
+CREATE TABLE document_chapters (
+    document_id INTEGER NOT NULL REFERENCES documents (id),
+    chapter_id TEXT NOT NULL REFERENCES chapters (id),
+    PRIMARY KEY (document_id, chapter_id)
+);
+CREATE TABLE document_languages (
+    document_id INTEGER NOT NULL REFERENCES documents (id),
+    glottocode TEXT NOT NULL,
+    PRIMARY KEY (document_id, glottocode)
+);
+CREATE VIRTUAL TABLE documents_fts USING fts5(
+    title, section, text, content='documents', content_rowid='id', tokenize='porter unicode61'
+);
 CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
 CREATE INDEX idx_values_feature ON feature_values (feature_id);
 CREATE INDEX idx_names_name ON names (name COLLATE NOCASE);
 CREATE INDEX idx_blocks_chapter ON blocks (chapter_id);
 CREATE INDEX idx_blocks_feature ON blocks (feature_id);
 CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
+CREATE INDEX idx_block_languages_block ON block_languages (block_id);
 """
 
 VALUE_COUNTS = """
@@ -141,6 +163,24 @@ REPORT = {
         SELECT COUNT(DISTINCT glottocode) FROM block_languages""",
     "Sample value table (81A)": """
         SELECT text FROM blocks WHERE feature_id = 'wals:81A'""",
+    "Documents: count / shortest / average / longest (characters)": """
+        SELECT COUNT(*), MIN(LENGTH(text)), CAST(AVG(LENGTH(text)) AS INTEGER), MAX(LENGTH(text))
+        FROM documents""",
+    "Documents longer than 3000 characters": """
+        SELECT COUNT(*) FROM documents WHERE LENGTH(text) > 3000""",
+    "Documents shared by several chapters": """
+        SELECT COUNT(*) FROM (
+            SELECT document_id FROM document_chapters GROUP BY document_id HAVING COUNT(*) > 1)""",
+    "Sample chapter metadata": """
+        SELECT id, name, contributors, citation FROM chapters WHERE id = '81'""",
+    "Sample WALS feature": """
+        SELECT id, name, description FROM features WHERE id = 'wals:81A'""",
+    "Sample Grambank feature (first 2500 characters of the description)": """
+        SELECT id, name, SUBSTR(description, 1, 2500) FROM features
+        WHERE source = 'grambank' ORDER BY id LIMIT 1""",
+    "Codes of that Grambank feature": """
+        SELECT id, name, description FROM codes WHERE feature_id = (
+            SELECT id FROM features WHERE source = 'grambank' ORDER BY id LIMIT 1)""",
 }
 
 
@@ -304,6 +344,7 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
         for source in SOURCES:
             load_structure(conn, source, archives[source.name])
         load_chapters(conn, archives[WALS.name])
+        load_documents(conn)
     partial.replace(db_path)
     return db_path
 
