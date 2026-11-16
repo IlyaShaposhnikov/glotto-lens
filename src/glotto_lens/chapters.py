@@ -2,10 +2,11 @@
 
 import re
 import sys
+import warnings
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Tag, XMLParsedAsHTMLWarning
 
 from glotto_lens.sources import WALS, cldf_members, download, read_text
 
@@ -56,7 +57,9 @@ def _example(element: Tag) -> str:
 
 def parse_chapter(html: str) -> list[Block]:
     """Split one chapter into blocks, keeping the heading path of each block."""
-    soup = BeautifulSoup(html, "html.parser")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", XMLParsedAsHTMLWarning)
+        soup = BeautifulSoup(html, "html.parser")
     root = soup.find(id="description") or soup
     path: dict[int, str] = {}
     blocks = []

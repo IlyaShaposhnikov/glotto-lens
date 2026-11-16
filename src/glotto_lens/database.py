@@ -5,7 +5,17 @@ import sys
 from contextlib import closing
 from pathlib import Path
 
-from glotto_lens.sources import GLOTTOLOG, SOURCES, Source, download, read_table
+from glotto_lens.chapters import parse_chapter
+from glotto_lens.sources import (
+    GLOTTOLOG,
+    SOURCES,
+    WALS,
+    Source,
+    cldf_members,
+    download,
+    read_table,
+    read_text,
+)
 
 DB_PATH = Path("data/glottolens.sqlite")
 
@@ -59,10 +69,38 @@ CREATE TABLE feature_values (
     code_id TEXT REFERENCES codes (id),
     comment TEXT
 );
+CREATE TABLE chapters (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    contributors TEXT,
+    citation TEXT,
+    url TEXT NOT NULL
+);
+CREATE TABLE blocks (
+    id INTEGER PRIMARY KEY,
+    chapter_id TEXT NOT NULL REFERENCES chapters (id),
+    position INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    section TEXT NOT NULL,
+    text TEXT NOT NULL,
+    feature_id TEXT REFERENCES features (id)
+);
+CREATE TABLE block_languages (
+    block_id INTEGER NOT NULL REFERENCES blocks (id),
+    glottocode TEXT NOT NULL
+);
 CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
 CREATE INDEX idx_values_feature ON feature_values (feature_id);
 CREATE INDEX idx_names_name ON names (name COLLATE NOCASE);
+CREATE INDEX idx_blocks_chapter ON blocks (chapter_id);
+CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
 """
+
+VALUE_COUNTS = """
+    SELECT c.name,
+           (SELECT COUNT(*) FROM feature_values v
+            WHERE v.feature_id = c.feature_id AND v.code_id = c.id)
+    FROM codes c WHERE c.feature_id = ? ORDER BY c.rowid"""
 
 REPORT = {
     "Languoids by level": """
@@ -88,6 +126,19 @@ REPORT = {
         SELECT local_id, name FROM features WHERE source = 'glottolog'""",
     "Names by language tag (top 10)": """
         SELECT lang, COUNT(*) FROM names GROUP BY lang ORDER BY 2 DESC LIMIT 10""",
+    "Chapters / blocks / value tables matched to a feature": """
+        SELECT (SELECT COUNT(*) FROM chapters), (SELECT COUNT(*) FROM blocks),
+               (SELECT COUNT(*) FROM blocks WHERE feature_id IS NOT NULL)""",
+    "Blocks by kind: count / characters": """
+        SELECT kind, COUNT(*), SUM(LENGTH(text)) FROM blocks GROUP BY kind ORDER BY 2 DESC""",
+    "WALS features: total / with chapter text / with value table in text": """
+        SELECT COUNT(*), SUM(chapter_id IN (SELECT id FROM chapters)),
+               SUM(id IN (SELECT feature_id FROM blocks WHERE feature_id IS NOT NULL))
+        FROM features WHERE source = 'wals'""",
+    "Languages linked from chapter text": """
+        SELECT COUNT(DISTINCT glottocode) FROM block_languages""",
+    "Sample value table (81A)": """
+        SELECT text FROM blocks WHERE feature_id = 'wals:81A'""",
 }
 
 
@@ -183,6 +234,50 @@ def load_structure(conn: sqlite3.Connection, source: Source, archive: Path) -> N
     )
 
 
+def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
+    """Load WALS chapter texts as blocks linked to features and languages."""
+    members = cldf_members(archive)
+    features = {row[0] for row in conn.execute("SELECT id FROM features")}
+    glottocodes = dict(
+        conn.execute(
+            "SELECT source_language_id, glottocode FROM source_languages "
+            "WHERE source = 'wals' AND glottocode IS NOT NULL"
+        )
+    )
+    for row in read_table(archive, "chapters.csv"):
+        path = f"docs/chapter_{row['ID']}.html"
+        if path not in members:
+            continue
+        page = "supplement" if row["ID"].startswith("s") else "chapter"
+        url = f"https://wals.info/{page}/{row['ID'].lstrip('s')}"
+        conn.execute(
+            "INSERT INTO chapters VALUES (?, ?, ?, ?, ?)",
+            (row["ID"], row["Name"], _text(row["Contributor"]), _text(row["Citation"]), url),
+        )
+        for position, block in enumerate(parse_chapter(read_text(archive, path))):
+            feature_id = f"wals:{block.feature}" if block.feature else None
+            text = block.text
+            if feature_id in features:
+                counts = conn.execute(VALUE_COUNTS, (feature_id,))
+                lines = [f"- {name}: {count} languages" for name, count in counts]
+                text = "\n".join([text, *lines])
+            else:
+                feature_id = None
+            cursor = conn.execute(
+                "INSERT INTO blocks (chapter_id, position, kind, section, text, feature_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (row["ID"], position, block.kind, block.section, text, feature_id),
+            )
+            conn.executemany(
+                "INSERT INTO block_languages VALUES (?, ?)",
+                (
+                    (cursor.lastrowid, glottocodes[code])
+                    for code in block.languages
+                    if code in glottocodes
+                ),
+            )
+
+
 def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> Path:
     """Create the database from scratch; archives are downloaded if not given."""
     archives = archives or {source.name: download(source) for source in SOURCES}
@@ -195,6 +290,7 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
         load_languoids(conn, archives[GLOTTOLOG.name])
         for source in SOURCES:
             load_structure(conn, source, archives[source.name])
+        load_chapters(conn, archives[WALS.name])
     partial.replace(db_path)
     return db_path
 

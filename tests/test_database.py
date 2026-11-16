@@ -8,8 +8,15 @@ import pytest
 
 from glotto_lens.database import build, report
 
+CHAPTER = (
+    '<div id="description"><h2>1. Intro</h2><p class="Textbody">'
+    '<a class="Language" href="http://wals.info/languoid/lect/wals_code_rus">Russian</a> text.</p>'
+    '<table class="values" id="value-table-1A"><caption>Values of Map 1A.</caption>'
+    "__values_1A__</table></div>"
+)
 
-def make_archive(path, tables):
+
+def make_archive(path, tables, texts=None):
     with zipfile.ZipFile(path, "w") as zf:
         for name, rows in tables.items():
             buffer = io.StringIO()
@@ -17,6 +24,8 @@ def make_archive(path, tables):
             writer.writeheader()
             writer.writerows(rows)
             zf.writestr(f"repo-1/cldf/{name}", buffer.getvalue())
+        for name, text in (texts or {}).items():
+            zf.writestr(f"repo-1/cldf/{name}", text)
     return path
 
 
@@ -75,10 +84,14 @@ def archives(tmp_path):
         {"ID": "xxx", "Name": "Unmapped", "Glottocode": ""},
     ]
     wals = structure(wals_languages, "1A", [("rus", "1"), ("xxx", "1")])
+    wals["chapters.csv"] = [
+        {"ID": "1", "Name": "Chapter", "Contributor": "A. Author", "Citation": "Cite"},
+        {"ID": "s4", "Name": "No HTML", "Contributor": "", "Citation": ""},
+    ]
     return {
         "glottolog": make_archive(tmp_path / "glottolog.zip", glottolog),
         "grambank": make_archive(tmp_path / "grambank.zip", grambank),
-        "wals": make_archive(tmp_path / "wals.zip", wals),
+        "wals": make_archive(tmp_path / "wals.zip", wals, {"docs/chapter_1.html": CHAPTER}),
     }
 
 
@@ -126,3 +139,23 @@ def test_dangling_code_reference_is_rejected(tmp_path, archives):
     with pytest.raises(sqlite3.IntegrityError):
         build(tmp_path / "broken.sqlite", archives)
     assert not (tmp_path / "broken.sqlite").exists()
+
+
+def test_chapter_without_html_is_skipped(db_path):
+    assert query(db_path, "SELECT id, url FROM chapters") == [("1", "https://wals.info/chapter/1")]
+
+
+def test_value_table_block_lists_codes_with_language_counts(db_path):
+    rows = query(db_path, "SELECT kind, section, text, feature_id FROM blocks ORDER BY position")
+    assert rows == [
+        ("paragraph", "1. Intro", "Russian text.", None),
+        ("values", "1. Intro", "Values of Map 1A.\n- yes: 1 languages", "wals:1A"),
+    ]
+
+
+def test_block_languages_are_mapped_to_glottocodes(db_path):
+    rows = query(
+        db_path,
+        "SELECT b.kind, l.glottocode FROM block_languages l JOIN blocks b ON b.id = l.block_id",
+    )
+    assert rows == [("paragraph", "russ1263")]
