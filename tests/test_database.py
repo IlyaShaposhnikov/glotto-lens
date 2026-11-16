@@ -59,7 +59,7 @@ def structure(languages, feature_id, values):
 
 
 @pytest.fixture
-def db_path(tmp_path):
+def archives(tmp_path):
     languoids = [
         languoid("russ1263", "Russian", "language"),
         languoid("basq1248", "Basque", "language"),
@@ -75,11 +75,15 @@ def db_path(tmp_path):
         {"ID": "xxx", "Name": "Unmapped", "Glottocode": ""},
     ]
     wals = structure(wals_languages, "1A", [("rus", "1"), ("xxx", "1")])
-    archives = {
+    return {
         "glottolog": make_archive(tmp_path / "glottolog.zip", glottolog),
         "grambank": make_archive(tmp_path / "grambank.zip", grambank),
         "wals": make_archive(tmp_path / "wals.zip", wals),
     }
+
+
+@pytest.fixture
+def db_path(tmp_path, archives):
     return build(tmp_path / "test.sqlite", archives)
 
 
@@ -112,3 +116,12 @@ def test_report_counts_overlap_and_unknown_values(db_path):
     result = report(db_path)
     assert result["Glottocodes shared by WALS and Grambank"] == [(1,)]
     assert ("grambank", 2, 1) in result["Values: total / unknown ('?')"]
+
+
+def test_dangling_code_reference_is_rejected(tmp_path, archives):
+    languages = [{"ID": "rus", "Name": "Russian", "Glottocode": "russ1263"}]
+    wals = structure(languages, "1A", [("rus", "1")])
+    wals["values.csv"][0]["Code_ID"] = "missing"
+    archives["wals"] = make_archive(tmp_path / "broken.zip", wals)
+    with pytest.raises(sqlite3.IntegrityError):
+        build(tmp_path / "broken.sqlite", archives)

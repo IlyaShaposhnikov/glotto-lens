@@ -13,11 +13,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-SOURCES = {
-    "grambank": "grambank/grambank",
-    "wals": "cldf-datasets/wals",
-    "glottolog": "glottolog/glottolog-cldf",
-}
+from glotto_lens.sources import SOURCES
+
 RAW_DIR = Path("data/raw")
 HEADERS = {"Accept": "application/vnd.github+json", "User-Agent": "glotto-lens"}
 API = "https://api.github.com/repos"
@@ -79,12 +76,13 @@ def describe(name: str, tag: str, archive: Path) -> None:
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     csv.field_size_limit(2**31 - 1)
-    for name, repo in SOURCES.items():
-        print(f"{name}: {repo}", file=sys.stderr)
-        tag, url = latest_release(repo)
-        archive = RAW_DIR / f"{name}-{tag}.zip"
+    for source in SOURCES:
+        tag, url = latest_release(source.repo)
+        status = "pinned" if tag == source.tag else f"pinned is {source.tag}"
+        print(f"{source.name}: latest {tag} ({status})", file=sys.stderr)
+        archive = RAW_DIR / f"{source.name}-{tag}.zip"
         download(url, archive)
-        describe(name, tag, archive)
+        describe(source.name, tag, archive)
 
 
 if __name__ == "__main__":

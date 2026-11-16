@@ -56,7 +56,7 @@ CREATE TABLE feature_values (
     glottocode TEXT NOT NULL,
     feature_id TEXT NOT NULL REFERENCES features (id),
     value TEXT,
-    code_id TEXT,
+    code_id TEXT REFERENCES codes (id),
     comment TEXT
 );
 CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
@@ -175,7 +175,7 @@ def load_structure(conn: sqlite3.Connection, source: Source, archive: Path) -> N
                 f"{name}:{row['Parameter_ID']}",
                 _text(row["Value"]),
                 f"{name}:{row['Code_ID']}" if row["Code_ID"] else None,
-                _text(row.get("Comment")),
+                _text(row["Comment"]),
             )
             for row in read_table(archive, "values.csv")
             if glottocodes.get(row["Language_ID"])
@@ -189,6 +189,7 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
     db_path.parent.mkdir(parents=True, exist_ok=True)
     db_path.unlink(missing_ok=True)
     with closing(sqlite3.connect(db_path)) as conn, conn:
+        conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(SCHEMA)
         load_languoids(conn, archives[GLOTTOLOG.name])
         for source in SOURCES:
