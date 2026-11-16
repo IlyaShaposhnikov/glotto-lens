@@ -125,3 +125,4 @@ def test_dangling_code_reference_is_rejected(tmp_path, archives):
     archives["wals"] = make_archive(tmp_path / "broken.zip", wals)
     with pytest.raises(sqlite3.IntegrityError):
         build(tmp_path / "broken.sqlite", archives)
+    assert not (tmp_path / "broken.sqlite").exists()

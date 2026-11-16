@@ -187,13 +187,15 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
     """Create the database from scratch; archives are downloaded if not given."""
     archives = archives or {source.name: download(source) for source in SOURCES}
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    db_path.unlink(missing_ok=True)
-    with closing(sqlite3.connect(db_path)) as conn, conn:
+    partial = db_path.with_suffix(".part")
+    partial.unlink(missing_ok=True)
+    with closing(sqlite3.connect(partial)) as conn, conn:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(SCHEMA)
         load_languoids(conn, archives[GLOTTOLOG.name])
         for source in SOURCES:
             load_structure(conn, source, archives[source.name])
+    partial.replace(db_path)
     return db_path
 
 
