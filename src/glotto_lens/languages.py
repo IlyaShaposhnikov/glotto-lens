@@ -5,7 +5,7 @@ import sys
 import unicodedata
 from collections import Counter
 from contextlib import closing
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from glotto_lens.sources import DB_PATH
 
@@ -23,7 +23,7 @@ NAME_SOURCES = """
     FROM source_languages s JOIN languoids l USING (glottocode)
     WHERE s.source IN ('wals', 'grambank')
     UNION ALL
-    SELECT s.glottocode, s.source_language_id, 'wals code'
+    SELECT s.glottocode, s.source_language_id, 'wals_code'
     FROM source_languages s JOIN languoids l USING (glottocode)
     WHERE s.source = 'wals'
     UNION ALL
@@ -32,7 +32,8 @@ NAME_SOURCES = """
     SELECT glottocode, glottocode, 'glottocode' FROM languoids"""
 
 # Known values per languoid and source, counted once at build time. A value is known when
-# it has a code ('?' says nothing). A source without own values is taken from dialects.
+# it has a code ('?' says nothing). A source without own known values is taken from the
+# direct dialects (one level down); language_profile follows the same rule.
 LANGUOID_FACTS = """
     WITH own AS (
         SELECT glottocode, source, COUNT(*) AS n FROM feature_values
@@ -56,15 +57,18 @@ LANGUOID_FACTS = """
 KNOWN_FACTS = """(SELECT COALESCE(SUM(CASE WHEN c.own > 0 THEN c.own ELSE c.dialects END), 0)
                   FROM languoid_facts c WHERE c.glottocode = l.glottocode)"""
 
-# Tiers: 0 exact code, 1 primary name, 2 alternative name, 3 name starting with the query.
-# Codes win outright; otherwise languages come before dialects and families, then the
-# better tier, then the better documented languoid.
+# Tiers: 0 exact code, 1 Glottolog name, 2 name of a WALS or Grambank entry, 3 alternative
+# name, 4 name starting with the query. Codes win outright; otherwise languages come before
+# dialects and families, then the better tier, then the better documented languoid.
+# SQLite takes the bare columns n.name and n.origin from the row that gives MIN(tier),
+# so every candidate reports the name it was found by.
 CANDIDATES = f"""
     SELECT l.glottocode, l.name, l.level, l.macroarea, f.name, l.iso639_3,
-           {KNOWN_FACTS} AS facts,
-           MIN(CASE WHEN n.key != :key THEN 3
-                    WHEN n.origin IN ('glottocode', 'iso', 'wals code') THEN 0
-                    WHEN n.origin = 'alternative' THEN 2 ELSE 1 END) AS tier
+           {KNOWN_FACTS} AS facts, n.name, n.origin,
+           MIN(CASE WHEN n.key != :key THEN 4
+                    WHEN n.origin IN ('glottocode', 'iso', 'wals_code') THEN 0
+                    WHEN n.origin = 'glottolog' THEN 1
+                    WHEN n.origin = 'alternative' THEN 3 ELSE 2 END) AS tier
     FROM name_index n
     JOIN languoids l USING (glottocode)
     LEFT JOIN languoids f ON f.glottocode = l.family_id
@@ -85,10 +89,8 @@ LANGUOID = f"""
     WHERE l.glottocode = ?"""
 
 FACTS = """
-    SELECT v.source, f.local_id, f.name,
-           COALESCE(c.description, c.name,
-                    CASE v.value WHEN '?' THEN 'not known (?)' ELSE v.value END),
-           v.comment, s.name, s.source_language_id
+    SELECT v.source, f.local_id, f.name, COALESCE(c.description, c.name), c.id IS NOT NULL,
+           v.comment, s.name, s.source_language_id, v.glottocode
     FROM feature_values v
     JOIN features f ON f.id = v.feature_id
     JOIN source_languages s
@@ -121,18 +123,32 @@ class Languoid:
     family: str | None
     iso639_3: str | None
     facts: int
+    matched_name: str | None = None
+    matched_origin: str | None = None
 
 
 @dataclass(frozen=True)
 class Fact:
+    """One value of one feature, as recorded by one dataset entry.
+
+    value is None when the source records the feature as unknown ('?'); known says the same.
+    entry and entry_id name the dataset entry; glottocode is the languoid that entry belongs
+    to, which differs from the profile's languoid when from_dialect is set. main marks facts
+    of the entry with the most known values of its source; facts of other entries may
+    disagree with it and are kept on purpose.
+    """
+
     source: str
     feature: str
     name: str
     value: str | None
+    known: bool
     comment: str | None
     entry: str
     entry_id: str
+    glottocode: str
     from_dialect: bool = False
+    main: bool = False
 
 
 @dataclass
@@ -150,8 +166,8 @@ def normalize_name(name: str) -> str:
     return " ".join(word for word in words if word not in FILLER_WORDS)
 
 
-def load_language_index(conn: sqlite3.Connection) -> None:
-    """Index all names and codes of every languoid and count its known values."""
+def load_name_index(conn: sqlite3.Connection) -> None:
+    """Index every known name and code of every languoid under its normalized key."""
     conn.executemany(
         "INSERT OR IGNORE INTO name_index VALUES (?, ?, ?, ?)",
         (
@@ -160,6 +176,10 @@ def load_language_index(conn: sqlite3.Connection) -> None:
             if (key := normalize_name(name))
         ),
     )
+
+
+def load_languoid_facts(conn: sqlite3.Connection) -> None:
+    """Count known values per languoid and source, own and borrowed from dialects."""
     conn.execute(LANGUOID_FACTS)
 
 
@@ -173,35 +193,43 @@ def find_languages(conn: sqlite3.Connection, query: str, limit: int = 5) -> list
         return []
     params = {"key": key, "limit": limit}
     rows = conn.execute(EXACT, params).fetchall() or conn.execute(PREFIX, params).fetchall()
-    return [Languoid(*row[:7]) for row in rows]
+    return [Languoid(*row[:9]) for row in rows]
 
 
-def _main_entry_first(facts: list[Fact]) -> list[Fact]:
-    """Within each feature, put the dataset entry with the most values first."""
-    sizes = Counter(fact.entry_id for fact in facts)
-    features = list(dict.fromkeys(fact.feature for fact in facts))
-    order = {feature: index for index, feature in enumerate(features)}
-    return sorted(facts, key=lambda fact: (order[fact.feature], -sizes[fact.entry_id]))
+def _mark_main_entry(facts: list[Fact]) -> list[Fact]:
+    """Flag the entry with the most known values; within a feature its fact comes first."""
+    sizes = Counter(fact.entry_id for fact in facts if fact.known)
+    main = min(sizes, key=lambda entry: (-sizes[entry], entry), default=None)
+    features = {feature: i for i, feature in enumerate(dict.fromkeys(f.feature for f in facts))}
+    marked = [replace(fact, main=fact.entry_id == main) for fact in facts]
+    return sorted(marked, key=lambda f: (features[f.feature], not f.main, -sizes[f.entry_id]))
 
 
 def language_profile(conn: sqlite3.Connection, glottocode: str) -> Profile | None:
     """Collect status and all WALS and Grambank values recorded for one languoid.
 
-    A source without values of its own is filled from the languoid's dialects, and such
-    facts are flagged. Every fact names its dataset entry, so conflicting entries stay
-    visible; the entry with the most values comes first.
+    A source without own known values is filled from the direct dialects, exactly as
+    counted in languoid_facts, so the profile always matches the candidate's count.
     """
     row = conn.execute(LANGUOID, (glottocode,)).fetchone()
     if row is None:
         return None
     status = dict(conn.execute(STATUS, (glottocode, *STATUS_FEATURES)).fetchall())
+    counts = {
+        source: (own, dialects)
+        for source, own, dialects in conn.execute(
+            "SELECT source, own, dialects FROM languoid_facts WHERE glottocode = ?", (glottocode,)
+        )
+    }
     facts = []
     for source in PROFILE_SOURCES:
-        found = [Fact(*fact) for fact in conn.execute(OWN_FACTS, (glottocode, source))]
-        if not found:
+        own, dialects = counts.get(source, (0, 0))
+        if own == 0 and dialects > 0:
             rows = conn.execute(DIALECT_FACTS, (glottocode, source))
             found = [Fact(*fact, from_dialect=True) for fact in rows]
-        facts += _main_entry_first(found)
+        else:
+            found = [Fact(*fact) for fact in conn.execute(OWN_FACTS, (glottocode, source))]
+        facts += _mark_main_entry(found)
     return Profile(Languoid(*row), status, facts)
 
 
@@ -214,6 +242,7 @@ def main(queries: list[str]) -> None:
                 print(
                     f"  {languoid.glottocode} | {languoid.name} | {languoid.level} | "
                     f"{languoid.family} | {languoid.macroarea} | {languoid.facts} known facts"
+                    f" | by {languoid.matched_origin} {languoid.matched_name!r}"
                 )
             if not candidates:
                 continue
@@ -227,7 +256,8 @@ def main(queries: list[str]) -> None:
                 borrowed = " (from dialects)" if any(f.from_dialect for f in facts) else ""
                 print(f"  {source}: {len(facts)} values from {entries}{borrowed}")
                 for fact in facts[:3]:
-                    print(f"    {fact.feature} {fact.name}: {fact.value} [{fact.entry}]")
+                    value = fact.value if fact.known else "not known (?)"
+                    print(f"    {fact.feature} {fact.name}: {value} [{fact.entry}]")
 
 
 if __name__ == "__main__":

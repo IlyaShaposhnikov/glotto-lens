@@ -22,9 +22,9 @@ def archives(tmp_path):
         {"ID": "1", "Language_ID": "russ1263", "Name": "русский", "Provider": "x", "lang": "ru"}
     ]
     grambank = structure(
-        [*languoids[:2], languoids[5]],
+        [*languoids[:2], languoids[3], languoids[5]],
         "GB020",
-        [("russ1263", "1"), ("basq1248", "?"), ("tuln1234", "1")],
+        [("russ1263", "1"), ("basq1248", "?"), ("basq9999", "1"), ("tuln1234", "1")],
     )
     grambank["parameters.csv"][0]["Description"] = GRAMBANK_DESCRIPTION
     wals_languages = [

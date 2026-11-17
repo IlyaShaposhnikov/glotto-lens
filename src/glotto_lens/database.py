@@ -7,7 +7,7 @@ from pathlib import Path
 
 from glotto_lens.chapters import parse_chapter
 from glotto_lens.documents import load_documents
-from glotto_lens.languages import load_language_index
+from glotto_lens.languages import load_languoid_facts, load_name_index
 from glotto_lens.sources import (
     DB_PATH,
     GLOTTOLOG,
@@ -121,7 +121,7 @@ CREATE TABLE name_index (
     PRIMARY KEY (key, glottocode, origin)
 ) WITHOUT ROWID;
 CREATE TABLE languoid_facts (
-    glottocode TEXT NOT NULL,
+    glottocode TEXT NOT NULL REFERENCES languoids (glottocode),
     source TEXT NOT NULL,
     own INTEGER NOT NULL,
     dialects INTEGER NOT NULL,
@@ -209,14 +209,6 @@ REPORT = {
         SELECT COUNT(*) FROM (
             SELECT glottocode FROM source_languages WHERE source = 'wals'
             AND glottocode IS NOT NULL GROUP BY glottocode HAVING COUNT(*) > 1)""",
-    "Languages without own data whose dialects have data": """
-        SELECT COUNT(DISTINCT l.parent_language_id) FROM languoids l
-        WHERE l.level = 'dialect'
-          AND l.glottocode IN (SELECT glottocode FROM source_languages
-                               WHERE source IN ('wals', 'grambank'))
-          AND l.parent_language_id NOT IN (SELECT glottocode FROM source_languages
-                                           WHERE glottocode IS NOT NULL
-                                             AND source IN ('wals', 'grambank'))""",
     "Glottolog status codes (aes, med)": """
         SELECT c.feature_id, c.name, c.description FROM codes c
         WHERE c.feature_id IN ('glottolog:aes', 'glottolog:med') ORDER BY c.rowid""",
@@ -373,7 +365,8 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
             load_structure(conn, source, archives[source.name])
         load_chapters(conn, archives[WALS.name])
         load_documents(conn)
-        load_language_index(conn)
+        load_name_index(conn)
+        load_languoid_facts(conn)
         conn.execute("ANALYZE")
     partial.replace(db_path)
     return db_path
