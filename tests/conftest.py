@@ -6,26 +6,27 @@ from glotto_lens.database import build
 
 @pytest.fixture
 def archives(tmp_path):
-    languoids = [
-        languoid("russ1263", "Russian", "language"),
-        languoid("basq1248", "Basque", "language"),
-        languoid("indo1319", "Indo-European", "family"),
-        languoid("basq9999", "Basque", "dialect"),
-        languoid("tula1234", "Tula", "language"),
-        languoid("tuln1234", "Tula North", "dialect"),
-    ]
-    languoids[0]["ISO639P3code"] = "rus"
-    languoids[3]["Language_ID"] = "basq1248"
-    languoids[5]["Language_ID"] = "tula1234"
-    glottolog = structure(languoids, "aes", [("russ1263", "1")])
+    languoids = {
+        row["ID"]: row
+        for row in [
+            languoid("russ1263", "Russian", "language"),
+            languoid("basq1248", "Basque", "language"),
+            languoid("indo1319", "Indo-European", "family"),
+            languoid("basq9999", "Basque", "dialect"),
+            languoid("tula1234", "Tula", "language"),
+            languoid("tuln1234", "Tula North", "dialect"),
+        ]
+    }
+    languoids["russ1263"]["ISO639P3code"] = "rus"
+    languoids["basq9999"]["Language_ID"] = "basq1248"
+    languoids["tuln1234"]["Language_ID"] = "tula1234"
+    glottolog = structure(list(languoids.values()), "aes", [("russ1263", "1")])
+    glottolog["codes.csv"][0]["Description"] = "EGIDS: 6b"
     glottolog["names.csv"] = [
         {"ID": "1", "Language_ID": "russ1263", "Name": "русский", "Provider": "x", "lang": "ru"}
     ]
-    grambank = structure(
-        [*languoids[:2], languoids[3], languoids[5]],
-        "GB020",
-        [("russ1263", "1"), ("basq1248", "?"), ("basq9999", "1"), ("tuln1234", "1")],
-    )
+    grambank_values = [("russ1263", "1"), ("basq1248", "?"), ("basq9999", "1"), ("tuln1234", "1")]
+    grambank = structure([languoids[code] for code, _ in grambank_values], "GB020", grambank_values)
     grambank["parameters.csv"][0]["Description"] = GRAMBANK_DESCRIPTION
     wals_languages = [
         {"ID": "rus", "Name": "Russian", "Glottocode": "russ1263"},

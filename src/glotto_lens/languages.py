@@ -11,6 +11,7 @@ from glotto_lens.sources import DB_PATH
 
 PROFILE_SOURCES = ("wals", "grambank")
 STATUS_FEATURES = ("aes", "med")
+UNKNOWN_LABEL = "not known (?)"
 # Words that name the category rather than the language: "Russian language" -> "russian".
 FILLER_WORDS = frozenset({"language", "languages", "lang", "язык", "языка", "языке", "языки"})
 
@@ -36,10 +37,10 @@ NAME_SOURCES = """
 # direct dialects (one level down); language_profile follows the same rule.
 LANGUOID_FACTS = """
     WITH own AS (
-        SELECT glottocode, source, COUNT(*) AS n FROM feature_values
-        WHERE source IN ('wals', 'grambank') AND code_id IS NOT NULL
-          AND glottocode IS NOT NULL
-        GROUP BY glottocode, source),
+        SELECT v.glottocode, v.source, COUNT(*) AS n
+        FROM feature_values v JOIN languoids l USING (glottocode)
+        WHERE v.source IN ('wals', 'grambank') AND v.code_id IS NOT NULL
+        GROUP BY v.glottocode, v.source),
     dialects AS (
         SELECT d.parent_language_id AS glottocode, v.source, COUNT(*) AS n
         FROM feature_values v JOIN languoids d ON d.glottocode = v.glottocode
@@ -89,7 +90,10 @@ LANGUOID = f"""
     WHERE l.glottocode = ?"""
 
 FACTS = """
-    SELECT v.source, f.local_id, f.name, COALESCE(c.description, c.name), c.id IS NOT NULL,
+    SELECT v.source, f.local_id, f.name,
+           CASE WHEN v.code_id IS NULL AND v.value = '?' THEN NULL
+                ELSE COALESCE(c.description, c.name, v.value) END,
+           v.code_id IS NOT NULL,
            v.comment, s.name, s.source_language_id, v.glottocode
     FROM feature_values v
     JOIN features f ON f.id = v.feature_id
@@ -97,7 +101,7 @@ FACTS = """
       ON s.source = v.source AND s.source_language_id = v.source_language_id
     LEFT JOIN codes c ON c.id = v.code_id
     WHERE v.glottocode IN ({glottocodes}) AND v.source = ?
-    ORDER BY f.rowid, s.name"""
+    ORDER BY f.rowid, s.name, s.source_language_id"""
 OWN_FACTS = FACTS.format(glottocodes="?")
 DIALECT_FACTS = FACTS.format(
     glottocodes="SELECT glottocode FROM languoids WHERE parent_language_id = ? "
@@ -131,11 +135,13 @@ class Languoid:
 class Fact:
     """One value of one feature, as recorded by one dataset entry.
 
-    value is None when the source records the feature as unknown ('?'); known says the same.
+    known is True for a coded value. value is None when the source records the feature as
+    unknown ('?'); an uncoded value with text keeps the text and has known=False.
     entry and entry_id name the dataset entry; glottocode is the languoid that entry belongs
-    to, which differs from the profile's languoid when from_dialect is set. main marks facts
-    of the entry with the most known values of its source; facts of other entries may
-    disagree with it and are kept on purpose.
+    to, which differs from the profile's languoid when from_dialect is set.
+    main marks facts of the entry with the most known values among the languoid's own
+    entries; facts of other entries may disagree with it and are kept on purpose. Facts
+    borrowed from dialects are never main: no dialect speaks for the whole language.
     """
 
     source: str
@@ -159,7 +165,11 @@ class Profile:
 
 
 def normalize_name(name: str) -> str:
-    """Make a lookup key: no diacritics, case folded, punctuation and filler words dropped."""
+    """Make a lookup key: no diacritics, case folded, punctuation and filler words dropped.
+
+    Removing combining marks also merges letters such as й/и and ё/е; this is intended,
+    since users type them inconsistently.
+    """
     decomposed = unicodedata.normalize("NFKD", name.casefold())
     letters = "".join(char for char in decomposed if not unicodedata.combining(char))
     words = "".join(char if char.isalnum() else " " for char in letters).split()
@@ -180,6 +190,7 @@ def load_name_index(conn: sqlite3.Connection) -> None:
 
 def load_languoid_facts(conn: sqlite3.Connection) -> None:
     """Count known values per languoid and source, own and borrowed from dialects."""
+    conn.execute("DELETE FROM languoid_facts")
     conn.execute(LANGUOID_FACTS)
 
 
@@ -197,8 +208,8 @@ def find_languages(conn: sqlite3.Connection, query: str, limit: int = 5) -> list
 
 
 def _mark_main_entry(facts: list[Fact]) -> list[Fact]:
-    """Flag the entry with the most known values; within a feature its fact comes first."""
-    sizes = Counter(fact.entry_id for fact in facts if fact.known)
+    """Flag the own entry with the most known values; within a feature it comes first."""
+    sizes = Counter(fact.entry_id for fact in facts if fact.known and not fact.from_dialect)
     main = min(sizes, key=lambda entry: (-sizes[entry], entry), default=None)
     features = {feature: i for i, feature in enumerate(dict.fromkeys(f.feature for f in facts))}
     marked = [replace(fact, main=fact.entry_id == main) for fact in facts]
@@ -256,7 +267,7 @@ def main(queries: list[str]) -> None:
                 borrowed = " (from dialects)" if any(f.from_dialect for f in facts) else ""
                 print(f"  {source}: {len(facts)} values from {entries}{borrowed}")
                 for fact in facts[:3]:
-                    value = fact.value if fact.known else "not known (?)"
+                    value = UNKNOWN_LABEL if fact.value is None else fact.value
                     print(f"    {fact.feature} {fact.name}: {value} [{fact.entry}]")
 
 

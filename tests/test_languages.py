@@ -3,7 +3,13 @@ from contextlib import closing
 
 import pytest
 
-from glotto_lens.languages import Fact, find_languages, language_profile, normalize_name
+from glotto_lens.languages import (
+    Fact,
+    find_languages,
+    language_profile,
+    load_languoid_facts,
+    normalize_name,
+)
 
 
 @pytest.fixture
@@ -99,13 +105,14 @@ def test_unknown_own_values_give_way_to_known_dialect_values(conn):
 
 
 def test_unknown_values_without_dialect_data_are_kept(conn):
-    conn.execute("DELETE FROM languoid_facts WHERE glottocode = 'basq1248'")
+    conn.execute("DELETE FROM feature_values WHERE glottocode = 'basq9999'")
+    load_languoid_facts(conn)
     facts = [f for f in language_profile(conn, "basq1248").facts if f.source == "grambank"]
     assert [(f.value, f.known, f.from_dialect) for f in facts] == [(None, False, False)]
 
 
 def test_profile_includes_glottolog_status(conn):
-    assert language_profile(conn, "russ1263").status == {"aes": "yes"}
+    assert language_profile(conn, "russ1263").status == {"aes": "yes (EGIDS: 6b)"}
 
 
 def test_profile_of_unknown_glottocode_is_none(conn):
@@ -134,6 +141,7 @@ def test_language_without_values_borrows_them_from_its_dialects(conn):
     assert [(f.feature, f.value, f.entry, f.glottocode, f.from_dialect) for f in facts] == [
         ("GB020", "yes", "Tula North", "tuln1234", True)
     ]
+    assert not any(fact.main for fact in facts)
 
 
 def test_dialects_fill_only_the_sources_without_own_values(conn):
@@ -142,7 +150,7 @@ def test_dialects_fill_only_the_sources_without_own_values(conn):
         "INSERT INTO feature_values VALUES ('wals', 'tul', 'tula1234', 'wals:1A', '1', "
         "'wals:1A-1', NULL)"
     )
-    conn.execute("INSERT INTO languoid_facts VALUES ('tula1234', 'wals', 1, 0)")
+    load_languoid_facts(conn)
     facts = language_profile(conn, "tula1234").facts
     assert [(fact.source, fact.from_dialect) for fact in facts] == [
         ("wals", False),
@@ -175,3 +183,33 @@ def test_unknown_values_do_not_make_an_entry_main(conn):
     )
     facts = [fact for fact in language_profile(conn, "russ1263").facts if fact.feature == "1A"]
     assert [(fact.entry_id, fact.main) for fact in facts] == [("rus", True), ("rus2", False)]
+
+
+def test_languoid_facts_can_be_reloaded(conn):
+    before = conn.execute("SELECT * FROM languoid_facts ORDER BY 1, 2").fetchall()
+    load_languoid_facts(conn)
+    assert conn.execute("SELECT * FROM languoid_facts ORDER BY 1, 2").fetchall() == before
+
+
+def test_values_of_glottocodes_unknown_to_glottolog_are_not_counted(conn):
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("INSERT INTO source_languages VALUES ('wals', 'zzz', 'Gone', 'gone0000')")
+    conn.execute(
+        "INSERT INTO feature_values VALUES ('wals', 'zzz', 'gone0000', 'wals:1A', '1', "
+        "'wals:1A-1', NULL)"
+    )
+    load_languoid_facts(conn)
+    rows = conn.execute("SELECT * FROM languoid_facts WHERE glottocode = 'gone0000'")
+    assert rows.fetchall() == []
+
+
+def test_uncoded_value_with_text_is_kept_but_not_known(conn):
+    conn.execute(
+        "INSERT INTO source_languages VALUES ('wals', 'rus2', 'Russian (Old)', 'russ1263')"
+    )
+    conn.execute(
+        "INSERT INTO feature_values VALUES ('wals', 'rus2', 'russ1263', 'wals:1A', "
+        "'free text', NULL, NULL)"
+    )
+    facts = [fact for fact in language_profile(conn, "russ1263").facts if fact.entry_id == "rus2"]
+    assert [(fact.value, fact.known) for fact in facts] == [("free text", False)]

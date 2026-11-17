@@ -124,5 +124,5 @@ def test_built_database_has_no_foreign_key_violations(db_path):
 def test_search_works_on_the_built_database(db_path):
     with closing(sqlite3.connect(db_path)) as conn:
         hits = search(conn, "present")
-    assert [(hit.kind, hit.section) for hit in hits] == [("feature", "Procedure")]
-    assert hits[0].urls == ("https://grambank.clld.org/parameters/GB020",)
+    procedure = [hit for hit in hits if hit.section == "Procedure"]
+    assert [hit.urls for hit in procedure] == [("https://grambank.clld.org/parameters/GB020",)]

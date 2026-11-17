@@ -5,6 +5,7 @@ import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from glotto_lens.languages import UNKNOWN_LABEL
 from glotto_lens.sources import SOURCES
 
 MAX_CHARS = 1500
@@ -123,7 +124,7 @@ def value_distribution(conn: sqlite3.Connection, feature_id: str, release: str) 
     lines = [f"Distribution in {release} data:"]
     lines += [f"- {label}: {_languages(count)}" for label, count in counts]
     if unknown:
-        lines.append(f"- not known (?): {_languages(unknown)}")
+        lines.append(f"- {UNKNOWN_LABEL}: {_languages(unknown)}")
     lines.append(f"Total: {_languages(unknown + sum(count for _, count in counts))}")
     return "\n".join(lines)
 
