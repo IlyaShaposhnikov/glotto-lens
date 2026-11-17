@@ -1,7 +1,8 @@
-"""Pinned releases of the source datasets: download and table access."""
+"""Pinned releases of the source datasets: locations, download and table access."""
 
 import csv
 import io
+import os
 import shutil
 import zipfile
 from collections.abc import Iterator
@@ -9,8 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-RAW_DIR = Path("data/raw")
+DATA_DIR = Path(os.environ.get("GLOTTO_LENS_DATA", "data"))
+RAW_DIR = DATA_DIR / "raw"
+DB_PATH = DATA_DIR / "glottolens.sqlite"
 USER_AGENT = "glotto-lens"
+
+csv.field_size_limit(2**31 - 1)
 
 
 @dataclass(frozen=True)
@@ -61,7 +66,6 @@ def cldf_members(archive: Path) -> dict[str, str]:
 
 def read_table(archive: Path, table: str) -> Iterator[dict[str, str]]:
     """Yield rows of a CLDF table, e.g. "languages.csv", as dictionaries."""
-    csv.field_size_limit(2**31 - 1)
     member = cldf_members(archive)[table]
     with zipfile.ZipFile(archive) as zf, zf.open(member) as raw:
         yield from csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8", newline=""))

@@ -9,6 +9,7 @@ from glotto_lens.chapters import parse_chapter
 from glotto_lens.documents import load_documents
 from glotto_lens.languages import load_name_index
 from glotto_lens.sources import (
+    DB_PATH,
     GLOTTOLOG,
     SOURCES,
     WALS,
@@ -18,8 +19,6 @@ from glotto_lens.sources import (
     read_table,
     read_text,
 )
-
-DB_PATH = Path("data/glottolens.sqlite")
 
 SCHEMA = """
 CREATE TABLE languoids (
@@ -123,13 +122,13 @@ CREATE TABLE name_index (
 );
 CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
 CREATE INDEX idx_values_feature ON feature_values (feature_id);
-CREATE INDEX idx_names_name ON names (name COLLATE NOCASE);
 CREATE INDEX idx_blocks_chapter ON blocks (chapter_id);
 CREATE INDEX idx_blocks_feature ON blocks (feature_id);
 CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
 CREATE INDEX idx_block_languages_block ON block_languages (block_id);
 CREATE INDEX idx_documents_feature ON documents (feature_id);
 CREATE INDEX idx_document_chapters_chapter ON document_chapters (chapter_id);
+CREATE INDEX idx_name_index_glottocode ON name_index (glottocode);
 """
 
 REPORT = {

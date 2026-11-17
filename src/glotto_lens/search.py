@@ -7,7 +7,7 @@ from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
-from glotto_lens.database import DB_PATH
+from glotto_lens.sources import DB_PATH
 
 STOPWORDS = frozenset(
     "a an and are as at be by do does for from how in is it of on or that the to what "
