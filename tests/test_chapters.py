@@ -57,3 +57,8 @@ def test_embedded_image_data_is_dropped():
 
 def test_plain_text_chapter_becomes_one_paragraph():
     assert parse_chapter("Just  plain\ntext.") == [Block("paragraph", "", "Just plain text.")]
+
+
+def test_fallback_uses_only_the_description_container():
+    html = '<nav>Menu</nav><div id="description"><span>Only  text</span></div>'
+    assert parse_chapter(html) == [Block("paragraph", "", "Only text")]

@@ -91,8 +91,8 @@ def parse_chapter(html: str) -> list[Block]:
         if text:
             section = " / ".join(path[level] for level in sorted(path))
             blocks.append(Block(kind, section, text, _languages(element), feature))
-    if not blocks and _clean(soup.get_text()):
-        blocks.append(Block("paragraph", "", _clean(soup.get_text())))
+    if not blocks and _clean(root.get_text()):
+        blocks.append(Block("paragraph", "", _clean(root.get_text())))
     return blocks
 
 

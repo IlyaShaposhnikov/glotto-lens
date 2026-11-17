@@ -18,7 +18,11 @@ FEATURE_URLS = {
     "wals": "https://wals.info/feature/{}",
     "grambank": "https://grambank.clld.org/parameters/{}",
 }
-SKIPPED_SECTIONS = frozenset({"further reading", "references"})
+SUMMARY = "summary"
+# Bibliography, coder names and cross-links: identical boilerplate that only adds noise.
+SKIPPED_SECTIONS = frozenset(
+    {SUMMARY, "further reading", "references", "patron", "patrons", "related features"}
+)
 
 VALUE_COUNTS = """
     SELECT COALESCE(c.description, c.name),
@@ -34,8 +38,8 @@ FEATURES = """
     WHERE f.source IN ('wals', 'grambank') ORDER BY f.rowid"""
 
 INSERT_DOCUMENT = """
-    INSERT INTO documents (kind, title, section, text, feature_id, url)
-    VALUES (?, ?, ?, ?, ?, ?)"""
+    INSERT INTO documents (kind, title, section, text, position, feature_id, url)
+    VALUES (?, ?, ?, ?, ?, ?, ?)"""
 
 
 @dataclass
@@ -126,11 +130,12 @@ def load_chapter_documents(conn: sqlite3.Connection) -> None:
             "WHERE chapter_id = ? AND kind != 'values' ORDER BY position",
             (chapter_id,),
         ).fetchall()
-        for chunk in chunk_blocks(blocks):
+        for position, chunk in enumerate(chunk_blocks(blocks)):
             key = (chunk.section, chunk.text)
             if key not in seen:
                 cursor = conn.execute(
-                    INSERT_DOCUMENT, ("chapter", name, chunk.section, chunk.text, None, None)
+                    INSERT_DOCUMENT,
+                    ("chapter", name, chunk.section, chunk.text, position, None, None),
                 )
                 seen[key] = cursor.lastrowid
                 marks = ", ".join("?" * len(chunk.block_ids))
@@ -150,7 +155,7 @@ def load_feature_documents(conn: sqlite3.Connection) -> None:
     for row in conn.execute(FEATURES).fetchall():
         feature_id, source, local_id, name, description, chapter_id, chapter, contributors = row
         sections = split_sections(description or "")
-        summary = "\n\n".join(body for heading, body in sections if heading.lower() == "summary")
+        summary = "\n\n".join(body for heading, body in sections if heading.lower() == SUMMARY)
         header = f"{DISPLAY_NAMES[source]} feature {local_id}: {name}"
         if chapter_id:
             author = f" by {contributors}" if contributors else ""
@@ -158,19 +163,23 @@ def load_feature_documents(conn: sqlite3.Connection) -> None:
         distribution = value_distribution(conn, feature_id, RELEASES[source])
         card = "\n\n".join(part for part in (header, summary, distribution) if part)
         url = FEATURE_URLS[source].format(local_id)
-        cursor = conn.execute(INSERT_DOCUMENT, ("feature", name, "Summary", card, feature_id, url))
+        cursor = conn.execute(
+            INSERT_DOCUMENT, ("feature", name, "Summary", card, 0, feature_id, url)
+        )
         if chapter_id:
             conn.execute(
                 "INSERT INTO document_chapters VALUES (?, ?)", (cursor.lastrowid, chapter_id)
             )
+        position = 1
         for heading, body in sections:
-            if heading.lower() in SKIPPED_SECTIONS | {"summary"}:
+            if heading.lower() in SKIPPED_SECTIONS:
                 continue
             for text in pack(re.split(r"\n\s*\n", body)):
                 conn.execute(
                     INSERT_DOCUMENT,
-                    ("feature", name, heading or "Description", text, feature_id, url),
+                    ("feature", name, heading or "Description", text, position, feature_id, url),
                 )
+                position += 1
 
 
 def load_documents(conn: sqlite3.Connection) -> None:

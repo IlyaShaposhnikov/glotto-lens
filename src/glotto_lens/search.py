@@ -16,9 +16,9 @@ STOPWORDS = frozenset(
 
 SEARCH = """
     SELECT d.id, -bm25(documents_fts, 3.0, 2.0, 1.0) AS score, d.kind, d.title, d.section,
-           d.text, d.url
+           d.text, d.url, snippet(documents_fts, 2, '[', ']', ' ... ', 32)
     FROM documents_fts JOIN documents d ON d.id = documents_fts.rowid
-    WHERE documents_fts MATCH ? ORDER BY score DESC LIMIT ?"""
+    WHERE documents_fts MATCH ? ORDER BY score DESC, d.id LIMIT ?"""
 
 URLS = """
     SELECT c.url FROM document_chapters dc JOIN chapters c ON c.id = dc.chapter_id
@@ -34,6 +34,7 @@ class Hit:
     section: str
     text: str
     urls: tuple[str, ...]
+    snippet: str
 
 
 def to_match_query(question: str) -> str:
@@ -48,10 +49,12 @@ def search(conn: sqlite3.Connection, question: str, limit: int = 5) -> list[Hit]
     if not match:
         return []
     hits = []
-    for document_id, score, kind, title, section, text, url in conn.execute(SEARCH, (match, limit)):
+    rows = conn.execute(SEARCH, (match, limit)).fetchall()
+    for document_id, score, kind, title, section, text, url, snippet in rows:
         urls = [url] if url else []
         urls += [row[0] for row in conn.execute(URLS, (document_id,))]
-        hits.append(Hit(document_id, score, kind, title, section, text, tuple(urls)))
+        urls = tuple(dict.fromkeys(urls))
+        hits.append(Hit(document_id, score, kind, title, section, text, urls, snippet))
     return hits
 
 
@@ -62,7 +65,7 @@ def main(question: str, db_path: Path = DB_PATH) -> None:
     for rank, hit in enumerate(hits, start=1):
         print(f"\n{rank}. [{hit.score:.1f}] {hit.kind}: {hit.title} / {hit.section}")
         print("   " + ", ".join(hit.urls))
-        print("   " + hit.text[:400].replace("\n", " "))
+        print("   " + hit.snippet.replace("\n", " "))
 
 
 if __name__ == "__main__":

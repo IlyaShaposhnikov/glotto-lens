@@ -68,8 +68,9 @@ def test_document_inherits_languages_of_its_blocks(conn):
 
 def test_feature_card_is_found_with_its_own_url(conn):
     conn.execute(
-        "INSERT INTO documents (kind, title, section, text, url) VALUES (?, ?, ?, ?, ?)",
-        ("feature", "Tone", "Summary", "Tone systems.", "https://wals.info/feature/13A"),
+        "INSERT INTO documents (kind, title, section, text, position, url) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("feature", "Tone", "Summary", "Tone systems.", 0, "https://wals.info/feature/13A"),
     )
     conn.execute("INSERT INTO documents_fts (documents_fts) VALUES ('rebuild')")
     hit = search(conn, "tone")[0]
@@ -78,3 +79,17 @@ def test_feature_card_is_found_with_its_own_url(conn):
 
 def test_question_without_searchable_words_returns_nothing(conn):
     assert search(conn, "what is the?") == []
+
+
+def test_equal_scores_are_ordered_by_document_id(conn):
+    conn.executemany(
+        "INSERT INTO documents (kind, title, section, text, position) VALUES (?, ?, ?, ?, ?)",
+        [("feature", "Same", "Summary", "Identical tone text.", 0)] * 3,
+    )
+    conn.execute("INSERT INTO documents_fts (documents_fts) VALUES ('rebuild')")
+    ids = [hit.document_id for hit in search(conn, "identical tone")]
+    assert ids == sorted(ids)
+
+
+def test_snippet_highlights_matched_words(conn):
+    assert "[verb]" in search(conn, "verb")[0].snippet

@@ -7,6 +7,7 @@ from contextlib import closing
 import pytest
 
 from glotto_lens.database import build, report
+from glotto_lens.search import search
 
 CHAPTER = (
     '<div id="description"><h2>1. Intro</h2><p class="Textbody">'
@@ -22,6 +23,12 @@ Short summary.
 
 ## Procedure
 Code 1 if present.
+
+## Patron
+Some Coder
+
+## Related Features
+* GB021
 
 ## References
 Author 2020."""
@@ -170,18 +177,11 @@ def test_chapter_without_html_is_skipped(db_path):
     assert query(db_path, "SELECT id, url FROM chapters") == [("1", "https://wals.info/chapter/1")]
 
 
-def test_value_table_block_shows_labelled_distribution(db_path):
+def test_blocks_keep_the_source_text_unchanged(db_path):
     rows = query(db_path, "SELECT kind, section, text, feature_id FROM blocks ORDER BY position")
-    distribution = (
-        "Values of Map 1A.\n"
-        "Distribution in WALS v2020.6 data:\n"
-        "- yes: 2 languages\n"
-        "- no: 1 language\n"
-        "Total: 3 languages"
-    )
     assert rows == [
         ("paragraph", "1. Intro", "Russian text.", None),
-        ("values", "1. Intro", distribution, "wals:1A"),
+        ("values", "1. Intro", "Values of Map 1A.", "wals:1A"),
     ]
 
 
@@ -217,7 +217,7 @@ def test_wals_feature_card_names_chapter_and_distribution(db_path):
 def test_grambank_feature_documents_follow_description_sections(db_path):
     rows = query(
         db_path,
-        "SELECT section, text FROM documents WHERE feature_id = 'grambank:GB020' ORDER BY id",
+        "SELECT section, text FROM documents WHERE feature_id = 'grambank:GB020' ORDER BY position",
     )
     card = (
         "Grambank feature GB020: Feature\n\n"
@@ -234,3 +234,14 @@ def test_grambank_feature_documents_follow_description_sections(db_path):
 def test_only_wals_and_grambank_features_get_cards(db_path):
     rows = query(db_path, "SELECT DISTINCT feature_id FROM documents WHERE kind = 'feature'")
     assert {row[0] for row in rows} == {"wals:1A", "grambank:GB020"}
+
+
+def test_built_database_has_no_foreign_key_violations(db_path):
+    assert report(db_path)["Foreign key violations"] == []
+
+
+def test_search_works_on_the_built_database(db_path):
+    with closing(sqlite3.connect(db_path)) as conn:
+        hits = search(conn, "present")
+    assert [(hit.kind, hit.section) for hit in hits] == [("feature", "Procedure")]
+    assert hits[0].urls == ("https://grambank.clld.org/parameters/GB020",)

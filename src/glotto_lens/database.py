@@ -6,7 +6,7 @@ from contextlib import closing
 from pathlib import Path
 
 from glotto_lens.chapters import parse_chapter
-from glotto_lens.documents import RELEASES, load_documents, value_distribution
+from glotto_lens.documents import load_documents
 from glotto_lens.sources import (
     GLOTTOLOG,
     SOURCES,
@@ -96,6 +96,7 @@ CREATE TABLE documents (
     title TEXT NOT NULL,
     section TEXT NOT NULL,
     text TEXT NOT NULL,
+    position INTEGER NOT NULL,
     feature_id TEXT REFERENCES features (id),
     url TEXT
 );
@@ -167,6 +168,14 @@ REPORT = {
     "Documents shared by several chapters": """
         SELECT COUNT(*) FROM (
             SELECT document_id FROM document_chapters GROUP BY document_id HAVING COUNT(*) > 1)""",
+    "Values without a code that are not '?'": """
+        SELECT source, COUNT(*) FROM feature_values
+        WHERE code_id IS NULL AND COALESCE(value, '') != '?' GROUP BY source""",
+    "Longest feature documents": """
+        SELECT feature_id, section, LENGTH(text) FROM documents
+        WHERE kind = 'feature' ORDER BY 3 DESC LIMIT 5""",
+    "Foreign key violations": """
+        SELECT * FROM pragma_foreign_key_check""",
     "Grambank feature sections (top 15)": """
         SELECT section, COUNT(*) FROM documents WHERE feature_id LIKE 'grambank:%'
         GROUP BY section ORDER BY 2 DESC LIMIT 15""",
@@ -271,7 +280,10 @@ def load_structure(conn: sqlite3.Connection, source: Source, archive: Path) -> N
 
 
 def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
-    """Load WALS chapter texts as blocks linked to features and languages."""
+    """Load WALS chapter texts as blocks linked to features and languages.
+
+    Blocks keep the source text unchanged; computed numbers live only in documents.
+    """
     members = cldf_members(archive)
     features = {row[0] for row in conn.execute("SELECT id FROM features")}
     glottocodes = dict(
@@ -292,16 +304,12 @@ def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
         )
         for position, block in enumerate(parse_chapter(read_text(archive, path))):
             feature_id = f"wals:{block.feature}" if block.feature else None
-            text = block.text
-            if feature_id in features:
-                distribution = value_distribution(conn, feature_id, RELEASES[WALS.name])
-                text = f"{text}\n{distribution}"
-            else:
+            if feature_id not in features:
                 feature_id = None
             cursor = conn.execute(
                 "INSERT INTO blocks (chapter_id, position, kind, section, text, feature_id) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (row["ID"], position, block.kind, block.section, text, feature_id),
+                (row["ID"], position, block.kind, block.section, block.text, feature_id),
             )
             conn.executemany(
                 "INSERT INTO block_languages VALUES (?, ?)",
@@ -320,6 +328,9 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
     partial = db_path.with_suffix(".part")
     partial.unlink(missing_ok=True)
     with closing(sqlite3.connect(partial)) as conn, conn:
+        # The partial file is discarded on failure, so durability can be traded for speed.
+        conn.execute("PRAGMA journal_mode = MEMORY")
+        conn.execute("PRAGMA synchronous = OFF")
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(SCHEMA)
         load_languoids(conn, archives[GLOTTOLOG.name])
@@ -327,6 +338,7 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
             load_structure(conn, source, archives[source.name])
         load_chapters(conn, archives[WALS.name])
         load_documents(conn)
+        conn.execute("ANALYZE")
     partial.replace(db_path)
     return db_path
 
