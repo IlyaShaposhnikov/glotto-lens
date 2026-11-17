@@ -15,7 +15,8 @@ STOPWORDS = frozenset(
 )
 
 SEARCH = """
-    SELECT d.id, -bm25(documents_fts, 3.0, 2.0, 1.0) AS score, d.title, d.section, d.text
+    SELECT d.id, -bm25(documents_fts, 3.0, 2.0, 1.0) AS score, d.kind, d.title, d.section,
+           d.text, d.url
     FROM documents_fts JOIN documents d ON d.id = documents_fts.rowid
     WHERE documents_fts MATCH ? ORDER BY score DESC LIMIT ?"""
 
@@ -28,6 +29,7 @@ URLS = """
 class Hit:
     document_id: int
     score: float
+    kind: str
     title: str
     section: str
     text: str
@@ -46,9 +48,10 @@ def search(conn: sqlite3.Connection, question: str, limit: int = 5) -> list[Hit]
     if not match:
         return []
     hits = []
-    for document_id, score, title, section, text in conn.execute(SEARCH, (match, limit)):
-        urls = tuple(row[0] for row in conn.execute(URLS, (document_id,)))
-        hits.append(Hit(document_id, score, title, section, text, urls))
+    for document_id, score, kind, title, section, text, url in conn.execute(SEARCH, (match, limit)):
+        urls = [url] if url else []
+        urls += [row[0] for row in conn.execute(URLS, (document_id,))]
+        hits.append(Hit(document_id, score, kind, title, section, text, tuple(urls)))
     return hits
 
 
@@ -57,7 +60,7 @@ def main(question: str, db_path: Path = DB_PATH) -> None:
         hits = search(conn, question)
     print(f"Query: {to_match_query(question)}")
     for rank, hit in enumerate(hits, start=1):
-        print(f"\n{rank}. [{hit.score:.1f}] {hit.title} / {hit.section}")
+        print(f"\n{rank}. [{hit.score:.1f}] {hit.kind}: {hit.title} / {hit.section}")
         print("   " + ", ".join(hit.urls))
         print("   " + hit.text[:400].replace("\n", " "))
 

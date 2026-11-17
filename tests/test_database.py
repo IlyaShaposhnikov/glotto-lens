@@ -15,6 +15,17 @@ CHAPTER = (
     "__values_1A__</table></div>"
 )
 
+GRAMBANK_DESCRIPTION = """## Feature
+
+## Summary
+Short summary.
+
+## Procedure
+Code 1 if present.
+
+## References
+Author 2020."""
+
 
 def make_archive(path, tables, texts=None):
     with zipfile.ZipFile(path, "w") as zf:
@@ -80,12 +91,14 @@ def archives(tmp_path):
         {"ID": "1", "Language_ID": "russ1263", "Name": "русский", "Provider": "x", "lang": "ru"}
     ]
     grambank = structure(languoids[:2], "GB020", [("russ1263", "1"), ("basq1248", "?")])
+    grambank["parameters.csv"][0]["Description"] = GRAMBANK_DESCRIPTION
     wals_languages = [
         {"ID": "rus", "Name": "Russian", "Glottocode": "russ1263"},
         {"ID": "bsq", "Name": "Basque", "Glottocode": "basq1248"},
         {"ID": "xxx", "Name": "Unmapped", "Glottocode": ""},
     ]
     wals = structure(wals_languages, "1A", [("rus", "1"), ("bsq", "2"), ("xxx", "1")])
+    wals["parameters.csv"][0]["Chapter_ID"] = "1"
     wals["chapters.csv"] = [
         {"ID": "1", "Name": "Chapter", "Contributor": "A. Author", "Citation": "Cite"},
         {"ID": "s4", "Name": "No HTML", "Contributor": "", "Citation": ""},
@@ -178,3 +191,46 @@ def test_block_languages_are_mapped_to_glottocodes(db_path):
         "SELECT b.kind, l.glottocode FROM block_languages l JOIN blocks b ON b.id = l.block_id",
     )
     assert rows == [("paragraph", "russ1263")]
+
+
+def test_chapter_documents_leave_value_tables_to_feature_cards(db_path):
+    rows = query(db_path, "SELECT section, text FROM documents WHERE kind = 'chapter'")
+    assert rows == [("1. Intro", "Russian text.")]
+
+
+def test_wals_feature_card_names_chapter_and_distribution(db_path):
+    rows = query(db_path, "SELECT section, text, url FROM documents WHERE feature_id = 'wals:1A'")
+    card = (
+        "WALS feature 1A: Feature\n"
+        'Described in the WALS chapter "Chapter" by A. Author.\n\n'
+        "Distribution in WALS v2020.6 data:\n"
+        "- yes: 2 languages\n"
+        "- no: 1 language\n"
+        "Total: 3 languages"
+    )
+    assert rows == [
+        ("Summary", card, "https://wals.info/feature/1A"),
+        ("Description", "Text", "https://wals.info/feature/1A"),
+    ]
+
+
+def test_grambank_feature_documents_follow_description_sections(db_path):
+    rows = query(
+        db_path,
+        "SELECT section, text FROM documents WHERE feature_id = 'grambank:GB020' ORDER BY id",
+    )
+    card = (
+        "Grambank feature GB020: Feature\n\n"
+        "Short summary.\n\n"
+        "Distribution in Grambank v1.0.3 data:\n"
+        "- yes: 1 language\n"
+        "- no: 0 languages\n"
+        "- not known (?): 1 language\n"
+        "Total: 2 languages"
+    )
+    assert rows == [("Summary", card), ("Procedure", "Code 1 if present.")]
+
+
+def test_only_wals_and_grambank_features_get_cards(db_path):
+    rows = query(db_path, "SELECT DISTINCT feature_id FROM documents WHERE kind = 'feature'")
+    assert {row[0] for row in rows} == {"wals:1A", "grambank:GB020"}

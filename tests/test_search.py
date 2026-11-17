@@ -66,5 +66,15 @@ def test_document_inherits_languages_of_its_blocks(conn):
     assert conn.execute("SELECT * FROM document_languages").fetchall() == [(1, "iris1253")]
 
 
+def test_feature_card_is_found_with_its_own_url(conn):
+    conn.execute(
+        "INSERT INTO documents (kind, title, section, text, url) VALUES (?, ?, ?, ?, ?)",
+        ("feature", "Tone", "Summary", "Tone systems.", "https://wals.info/feature/13A"),
+    )
+    conn.execute("INSERT INTO documents_fts (documents_fts) VALUES ('rebuild')")
+    hit = search(conn, "tone")[0]
+    assert (hit.kind, hit.urls) == ("feature", ("https://wals.info/feature/13A",))
+
+
 def test_question_without_searchable_words_returns_nothing(conn):
     assert search(conn, "what is the?") == []

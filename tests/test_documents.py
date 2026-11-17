@@ -1,4 +1,4 @@
-from glotto_lens.documents import chunk_blocks
+from glotto_lens.documents import chunk_blocks, pack, split_sections
 
 
 def rows(*blocks):
@@ -33,3 +33,19 @@ def test_paragraph_opens_a_new_chunk_when_the_limit_is_exceeded():
 
 def test_no_blocks_give_no_chunks():
     assert chunk_blocks([]) == []
+
+
+def test_sections_are_split_on_second_level_headings():
+    markdown = "## Title\n\n## Summary\nOne.\n\nTwo.\n\n## Procedure\n1. Code 1."
+    assert split_sections(markdown) == [("Summary", "One.\n\nTwo."), ("Procedure", "1. Code 1.")]
+
+
+def test_text_before_the_first_heading_has_an_empty_heading():
+    assert split_sections("Intro.\n\n## Summary\nText.") == [("", "Intro."), ("Summary", "Text.")]
+
+
+def test_pack_joins_parts_up_to_the_limit():
+    assert pack(["a" * 60, "b" * 30, "c" * 60], max_chars=100) == [
+        "a" * 60 + "\n\n" + "b" * 30,
+        "c" * 60,
+    ]

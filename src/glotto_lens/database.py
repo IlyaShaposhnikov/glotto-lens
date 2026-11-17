@@ -6,7 +6,7 @@ from contextlib import closing
 from pathlib import Path
 
 from glotto_lens.chapters import parse_chapter
-from glotto_lens.documents import load_documents
+from glotto_lens.documents import RELEASES, load_documents, value_distribution
 from glotto_lens.sources import (
     GLOTTOLOG,
     SOURCES,
@@ -95,7 +95,9 @@ CREATE TABLE documents (
     kind TEXT NOT NULL,
     title TEXT NOT NULL,
     section TEXT NOT NULL,
-    text TEXT NOT NULL
+    text TEXT NOT NULL,
+    feature_id TEXT REFERENCES features (id),
+    url TEXT
 );
 CREATE TABLE document_chapters (
     document_id INTEGER NOT NULL REFERENCES documents (id),
@@ -117,13 +119,8 @@ CREATE INDEX idx_blocks_chapter ON blocks (chapter_id);
 CREATE INDEX idx_blocks_feature ON blocks (feature_id);
 CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
 CREATE INDEX idx_block_languages_block ON block_languages (block_id);
+CREATE INDEX idx_documents_feature ON documents (feature_id);
 """
-
-VALUE_COUNTS = """
-    SELECT c.name,
-           (SELECT COUNT(*) FROM feature_values v
-            WHERE v.feature_id = c.feature_id AND v.code_id = c.id)
-    FROM codes c WHERE c.feature_id = ? ORDER BY c.rowid"""
 
 REPORT = {
     "Languoids by level": """
@@ -161,26 +158,24 @@ REPORT = {
         FROM features WHERE source = 'wals'""",
     "Languages linked from chapter text": """
         SELECT COUNT(DISTINCT glottocode) FROM block_languages""",
-    "Sample value table (81A)": """
-        SELECT text FROM blocks WHERE feature_id = 'wals:81A'""",
-    "Documents: count / shortest / average / longest (characters)": """
-        SELECT COUNT(*), MIN(LENGTH(text)), CAST(AVG(LENGTH(text)) AS INTEGER), MAX(LENGTH(text))
-        FROM documents""",
-    "Documents longer than 3000 characters": """
-        SELECT COUNT(*) FROM documents WHERE LENGTH(text) > 3000""",
+    "Documents by kind: count / shortest / average / longest (characters)": """
+        SELECT kind, COUNT(*), MIN(LENGTH(text)), CAST(AVG(LENGTH(text)) AS INTEGER),
+               MAX(LENGTH(text))
+        FROM documents GROUP BY kind""",
+    "Documents longer than 3000 characters, by kind": """
+        SELECT kind, COUNT(*) FROM documents WHERE LENGTH(text) > 3000 GROUP BY kind""",
     "Documents shared by several chapters": """
         SELECT COUNT(*) FROM (
             SELECT document_id FROM document_chapters GROUP BY document_id HAVING COUNT(*) > 1)""",
-    "Sample chapter metadata": """
-        SELECT id, name, contributors, citation FROM chapters WHERE id = '81'""",
-    "Sample WALS feature": """
-        SELECT id, name, description FROM features WHERE id = 'wals:81A'""",
-    "Sample Grambank feature (first 2500 characters of the description)": """
-        SELECT id, name, SUBSTR(description, 1, 2500) FROM features
-        WHERE source = 'grambank' ORDER BY id LIMIT 1""",
-    "Codes of that Grambank feature": """
-        SELECT id, name, description FROM codes WHERE feature_id = (
-            SELECT id FROM features WHERE source = 'grambank' ORDER BY id LIMIT 1)""",
+    "Grambank feature sections (top 15)": """
+        SELECT section, COUNT(*) FROM documents WHERE feature_id LIKE 'grambank:%'
+        GROUP BY section ORDER BY 2 DESC LIMIT 15""",
+    "Feature card of WALS 81A": """
+        SELECT text FROM documents WHERE feature_id = 'wals:81A'""",
+    "Feature card of WALS 81B": """
+        SELECT text FROM documents WHERE feature_id = 'wals:81B'""",
+    "Feature card of Grambank GB020": """
+        SELECT text FROM documents WHERE feature_id = 'grambank:GB020' AND section = 'Summary'""",
 }
 
 
@@ -190,10 +185,6 @@ def _text(value: str | None) -> str | None:
 
 def _number(value: str | None) -> float | None:
     return float(value) if value else None
-
-
-def _languages(count: int) -> str:
-    return f"{count} language" if count == 1 else f"{count} languages"
 
 
 def load_languoids(conn: sqlite3.Connection, archive: Path) -> None:
@@ -279,15 +270,6 @@ def load_structure(conn: sqlite3.Connection, source: Source, archive: Path) -> N
     )
 
 
-def value_distribution(conn: sqlite3.Connection, feature_id: str, release: str) -> str:
-    """Render the value counts of a feature, labelled as computed from the data."""
-    counts = conn.execute(VALUE_COUNTS, (feature_id,)).fetchall()
-    lines = [f"Distribution in {release} data:"]
-    lines += [f"- {name}: {_languages(count)}" for name, count in counts]
-    lines.append(f"Total: {_languages(sum(count for _, count in counts))}")
-    return "\n".join(lines)
-
-
 def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
     """Load WALS chapter texts as blocks linked to features and languages."""
     members = cldf_members(archive)
@@ -312,8 +294,8 @@ def load_chapters(conn: sqlite3.Connection, archive: Path) -> None:
             feature_id = f"wals:{block.feature}" if block.feature else None
             text = block.text
             if feature_id in features:
-                release = f"WALS {WALS.tag}"
-                text = f"{text}\n{value_distribution(conn, feature_id, release)}"
+                distribution = value_distribution(conn, feature_id, RELEASES[WALS.name])
+                text = f"{text}\n{distribution}"
             else:
                 feature_id = None
             cursor = conn.execute(
