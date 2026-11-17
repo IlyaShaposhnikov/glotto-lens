@@ -2,6 +2,13 @@
 
 This is the retrieval half of question answering. The rendered context lists every piece of
 evidence with a label ([V1], [T1]) and a link, so an answer can cite what it relies on.
+
+Which features to report values for:
+- feature documents (cards and their sections) name their feature exactly, so they decide;
+- only when no feature document matches, the chapter of the best chapter text decides.
+Chapter texts found because they mention the language are kept only if their chapter
+describes one of those features; otherwise they are mentions of the language on
+unrelated topics.
 """
 
 import argparse
@@ -22,19 +29,27 @@ from glotto_lens.search import Hit, search
 from glotto_lens.sources import DB_PATH
 
 TEXT_LIMIT = 5
+FEATURE_TEXT_LIMIT = 3
 LANGUAGE_TEXT_LIMIT = 3
 MAX_FEATURES = 8
 VALUE_URLS = {
     "wals": "https://wals.info/datapoint/{feature}/wals_code_{entry}",
-    "grambank": "https://grambank.clld.org/languages/{entry}",
+    "grambank": "https://grambank.clld.org/valuesets/{feature}-{entry}",
 }
+STATUS_NAMES = {"aes": "endangerment status", "med": "most extensive description"}
 
 CHAPTER_FEATURES = """
     SELECT f.id FROM document_chapters dc
     JOIN features f ON f.chapter_id = dc.chapter_id AND f.source = 'wals'
     WHERE dc.document_id = ? ORDER BY dc.chapter_id, f.rowid"""
 
-FEATURE = "SELECT source, local_id, name FROM features WHERE id = ?"
+DOCUMENT_CHAPTERS = "SELECT chapter_id FROM document_chapters WHERE document_id = ?"
+
+AUTHORS = """
+    SELECT c.contributors FROM document_chapters dc JOIN chapters c ON c.id = dc.chapter_id
+    WHERE dc.document_id = ? AND c.contributors IS NOT NULL ORDER BY c.rowid LIMIT 1"""
+
+FEATURE = "SELECT source, local_id, name, chapter_id FROM features WHERE id = ?"
 
 
 @dataclass(frozen=True)
@@ -57,30 +72,32 @@ class Context:
     other_candidates: list[Languoid] = field(default_factory=list)
     status: dict[str, str | None] = field(default_factory=dict)
     hits: list[Hit] = field(default_factory=list)
+    authors: dict[int, str] = field(default_factory=dict)
     evidence: list[FeatureEvidence] = field(default_factory=list)
+    dropped_features: int = 0
 
 
 def _merge(*groups: list[Hit]) -> list[Hit]:
-    """Keep the first occurrence of each document and of each identical passage."""
-    merged, documents, snippets = [], set(), set()
+    """Join hit lists, drop repeated passages and order everything by score."""
+    merged, seen = [], set()
     for hit in (hit for group in groups for hit in group):
-        if hit.document_id in documents or hit.snippet in snippets:
+        key = (hit.title, hit.section, hit.text)
+        if hit.document_id in seen or key in seen:
             continue
-        documents.add(hit.document_id)
-        snippets.add(hit.snippet)
+        seen.update({hit.document_id, key})
         merged.append(hit)
-    return merged
+    return sorted(merged, key=lambda hit: (-hit.score, hit.document_id))
 
 
 def related_features(conn: sqlite3.Connection, hits: list[Hit]) -> list[str]:
-    """Features the hits are about: a card names its feature, a chapter names its maps."""
-    features: list[str] = []
-    for hit in hits:
-        if hit.feature_id:
-            features.append(hit.feature_id)
-        else:
-            features += [row[0] for row in conn.execute(CHAPTER_FEATURES, (hit.document_id,))]
-    return list(dict.fromkeys(features))[:MAX_FEATURES]
+    """Features the hits are about: feature documents first, else the best chapter's maps."""
+    features = [hit.feature_id for hit in hits if hit.feature_id]
+    if not features:
+        chapters = [hit for hit in hits if hit.kind == "chapter"]
+        if chapters:
+            rows = conn.execute(CHAPTER_FEATURES, (chapters[0].document_id,))
+            features = [row[0] for row in rows]
+    return list(dict.fromkeys(features))
 
 
 def build_context(conn: sqlite3.Connection, question: str, language: str | None = None) -> Context:
@@ -91,15 +108,31 @@ def build_context(conn: sqlite3.Connection, question: str, language: str | None 
         context.languoid, *context.other_candidates = candidates
     glottocode = context.languoid.glottocode if context.languoid else None
 
-    general = search(conn, question, TEXT_LIMIT)
-    mentioning = search(conn, question, LANGUAGE_TEXT_LIMIT, glottocode) if glottocode else []
-    context.hits = _merge(general, mentioning)
+    found = _merge(
+        search(conn, question, TEXT_LIMIT),
+        search(conn, question, FEATURE_TEXT_LIMIT, kind="feature"),
+    )
+    features = related_features(conn, found)
+    context.dropped_features = max(0, len(features) - MAX_FEATURES)
+    features = features[:MAX_FEATURES]
+
+    rows = [conn.execute(FEATURE, (feature_id,)).fetchone() for feature_id in features]
+    chapters = {row[3] for row in rows if row[0] == "wals" and row[3]}
+    mentioning = [
+        hit
+        for hit in (search(conn, question, LANGUAGE_TEXT_LIMIT, glottocode) if glottocode else [])
+        if any(row[0] in chapters for row in conn.execute(DOCUMENT_CHAPTERS, (hit.document_id,)))
+    ]
+    context.hits = _merge(found, mentioning)
+    for hit in context.hits:
+        author = conn.execute(AUTHORS, (hit.document_id,)).fetchone()
+        if author and hit.kind == "chapter":
+            context.authors[hit.document_id] = author[0]
 
     profile = language_profile(conn, glottocode) if glottocode else None
     if profile:
         context.status = profile.status
-    for feature_id in related_features(conn, context.hits):
-        source, local_id, name = conn.execute(FEATURE, (feature_id,)).fetchone()
+    for feature_id, (source, local_id, name, _) in zip(features, rows, strict=True):
         facts = tuple(
             fact
             for fact in (profile.facts if profile else [])
@@ -121,39 +154,49 @@ def _value_line(fact: Fact) -> str:
     return f"{value} ({'; '.join(notes)}) {url}"
 
 
+def _language_lines(context: Context) -> list[str]:
+    languoid = context.languoid
+    if languoid is None:
+        if context.language_query:
+            return [f"Language: {context.language_query!r} was not found in Glottolog.", ""]
+        return []
+    lines = [
+        f"Language: {languoid.name} (glottocode {languoid.glottocode}; "
+        f"family {languoid.family or 'none (isolate or unclassified)'}; "
+        f"area {languoid.macroarea}; "
+        f"https://glottolog.org/resource/languoid/id/{languoid.glottocode})"
+    ]
+    if context.other_candidates:
+        others = ", ".join(f"{c.name} ({c.glottocode})" for c in context.other_candidates)
+        lines.append(f"Other languages matching {context.language_query!r}: {others}")
+    for key, value in context.status.items():
+        lines.append(f"Glottolog {STATUS_NAMES.get(key, key)}: {value}")
+    lines += ["", f"Values recorded for {languoid.name}:"]
+    number = 0
+    for evidence in context.evidence:
+        title = f"{DISPLAY_NAMES[evidence.source]} {evidence.local_id} {evidence.name}"
+        if not evidence.facts:
+            number += 1
+            lines.append(f"[V{number}] {title}: no value recorded {evidence.url}")
+        for fact in evidence.facts:
+            number += 1
+            lines.append(f"[V{number}] {title}: {_value_line(fact)}")
+    if not context.evidence:
+        lines.append("No feature matched the question.")
+    if context.dropped_features:
+        lines.append(f"({context.dropped_features} more related features not shown.)")
+    return [*lines, ""]
+
+
 def render_context(context: Context) -> str:
     """Render the context as plain text with labelled, linked evidence."""
-    lines = [f"Question: {context.question}", ""]
-    languoid = context.languoid
-    if context.language_query and languoid is None:
-        lines += [f"Language: {context.language_query!r} was not found in Glottolog.", ""]
-    elif languoid:
-        lines.append(
-            f"Language: {languoid.name} (glottocode {languoid.glottocode}; "
-            f"family {languoid.family or 'none (isolate or unclassified)'}; "
-            f"area {languoid.macroarea}; https://glottolog.org/resource/languoid/id/"
-            f"{languoid.glottocode})"
-        )
-        if context.other_candidates:
-            others = ", ".join(f"{c.name} ({c.glottocode})" for c in context.other_candidates)
-            lines.append(f"Other languages matching {context.language_query!r}: {others}")
-        for key, value in context.status.items():
-            lines.append(f"Glottolog {key}: {value}")
-        lines += ["", f"Values recorded for {languoid.name}:"]
-        number = 0
-        for evidence in context.evidence:
-            source = DISPLAY_NAMES[evidence.source]
-            title = f"{source} {evidence.local_id} {evidence.name}"
-            if not evidence.facts:
-                number += 1
-                lines.append(f"[V{number}] {title}: no value recorded {evidence.url}")
-            for fact in evidence.facts:
-                number += 1
-                lines.append(f"[V{number}] {title}: {_value_line(fact)}")
-        lines.append("")
-    lines.append("Texts:")
+    lines = [f"Question: {context.question}", "", *_language_lines(context), "Texts:"]
+    if not context.hits:
+        lines.append("No text matched the question.")
     for number, hit in enumerate(context.hits, start=1):
-        lines.append(f"[T{number}] {hit.title} / {hit.section} {' '.join(hit.urls)}")
+        author = context.authors.get(hit.document_id)
+        by = f" (by {author})" if author else ""
+        lines.append(f"[T{number}] {hit.title} / {hit.section}{by} {' '.join(hit.urls)}")
         lines += [hit.text, ""]
     return "\n".join(lines).rstrip() + "\n"
 

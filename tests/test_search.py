@@ -100,3 +100,12 @@ def test_language_filter_keeps_only_texts_mentioning_it(conn):
         "Order of Subject, Object and Verb"
     ]
     assert search(conn, "colour", glottocode="iris1253") == []
+
+
+def test_kind_filter_keeps_only_documents_of_that_kind(conn):
+    conn.execute(
+        "INSERT INTO documents (kind, title, section, text, position) VALUES (?, ?, ?, ?, ?)",
+        ("feature", "Verb card", "Summary", "Verb position card.", 0),
+    )
+    conn.execute("INSERT INTO documents_fts (documents_fts) VALUES ('rebuild')")
+    assert [hit.kind for hit in search(conn, "verb", kind="feature")] == ["feature"]
