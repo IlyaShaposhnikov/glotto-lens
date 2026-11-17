@@ -1,4 +1,4 @@
-from glotto_lens.documents import chunk_blocks, pack, split_sections
+from glotto_lens.documents import chunk_blocks, pack, paragraphs, split_sections
 
 
 def rows(*blocks):
@@ -49,3 +49,12 @@ def test_pack_joins_parts_up_to_the_limit():
         "a" * 60 + "\n\n" + "b" * 30,
         "c" * 60,
     ]
+
+
+def test_pack_uses_the_given_separator():
+    assert pack(["a", "b"], max_chars=10, separator="\n") == ["a\nb"]
+
+
+def test_oversized_paragraph_is_split_by_lines():
+    body = "short\n\n" + "\n".join(["x" * 40] * 3)
+    assert paragraphs(body, max_chars=100) == ["short", "x" * 40 + "\n" + "x" * 40, "x" * 40]

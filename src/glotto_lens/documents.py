@@ -88,7 +88,7 @@ def split_sections(markdown: str) -> list[tuple[str, str]]:
     return [(heading, body) for heading, body in sections if body]
 
 
-def pack(parts: Iterable[str], max_chars: int = MAX_CHARS) -> list[str]:
+def pack(parts: Iterable[str], max_chars: int = MAX_CHARS, separator: str = "\n\n") -> list[str]:
     """Join consecutive parts into texts of at most max_chars; a longer part stays whole."""
     groups: list[list[str]] = []
     size = 0
@@ -98,7 +98,18 @@ def pack(parts: Iterable[str], max_chars: int = MAX_CHARS) -> list[str]:
             size = 0
         groups[-1].append(part)
         size += len(part)
-    return ["\n\n".join(group) for group in groups]
+    return [separator.join(group) for group in groups]
+
+
+def paragraphs(body: str, max_chars: int = MAX_CHARS) -> list[str]:
+    """Split a text on blank lines; a paragraph over the limit is split by lines."""
+    parts = []
+    for paragraph in re.split(r"\n\s*\n", body):
+        if len(paragraph) > max_chars:
+            parts.extend(pack(paragraph.splitlines(), max_chars, separator="\n"))
+        else:
+            parts.append(paragraph)
+    return parts
 
 
 def _languages(count: int) -> str:
@@ -164,7 +175,7 @@ def load_feature_documents(conn: sqlite3.Connection) -> None:
         card = "\n\n".join(part for part in (header, summary, distribution) if part)
         url = FEATURE_URLS[source].format(local_id)
         cursor = conn.execute(
-            INSERT_DOCUMENT, ("feature", name, "Summary", card, 0, feature_id, url)
+            INSERT_DOCUMENT, ("feature", name, SUMMARY.title(), card, 0, feature_id, url)
         )
         if chapter_id:
             conn.execute(
@@ -174,7 +185,7 @@ def load_feature_documents(conn: sqlite3.Connection) -> None:
         for heading, body in sections:
             if heading.lower() in SKIPPED_SECTIONS:
                 continue
-            for text in pack(re.split(r"\n\s*\n", body)):
+            for text in pack(paragraphs(body)):
                 conn.execute(
                     INSERT_DOCUMENT,
                     ("feature", name, heading or "Description", text, position, feature_id, url),

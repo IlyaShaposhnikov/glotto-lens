@@ -7,6 +7,7 @@ from pathlib import Path
 
 from glotto_lens.chapters import parse_chapter
 from glotto_lens.documents import load_documents
+from glotto_lens.languages import load_name_index
 from glotto_lens.sources import (
     GLOTTOLOG,
     SOURCES,
@@ -113,6 +114,13 @@ CREATE TABLE document_languages (
 CREATE VIRTUAL TABLE documents_fts USING fts5(
     title, section, text, content='documents', content_rowid='id', tokenize='porter unicode61'
 );
+CREATE TABLE name_index (
+    key TEXT NOT NULL,
+    glottocode TEXT NOT NULL REFERENCES languoids (glottocode),
+    name TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    PRIMARY KEY (key, glottocode, origin)
+);
 CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
 CREATE INDEX idx_values_feature ON feature_values (feature_id);
 CREATE INDEX idx_names_name ON names (name COLLATE NOCASE);
@@ -121,6 +129,7 @@ CREATE INDEX idx_blocks_feature ON blocks (feature_id);
 CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
 CREATE INDEX idx_block_languages_block ON block_languages (block_id);
 CREATE INDEX idx_documents_feature ON documents (feature_id);
+CREATE INDEX idx_document_chapters_chapter ON document_chapters (chapter_id);
 """
 
 REPORT = {
@@ -153,7 +162,7 @@ REPORT = {
                (SELECT COUNT(*) FROM blocks WHERE feature_id IS NOT NULL)""",
     "Blocks by kind: count / characters": """
         SELECT kind, COUNT(*), SUM(LENGTH(text)) FROM blocks GROUP BY kind ORDER BY 2 DESC""",
-    "WALS features: total / with chapter text / with value table in text": """
+    "WALS features: total / with chapter text / matched to a value table block": """
         SELECT COUNT(*), SUM(chapter_id IN (SELECT id FROM chapters)),
                SUM(id IN (SELECT feature_id FROM blocks WHERE feature_id IS NOT NULL))
         FROM features WHERE source = 'wals'""",
@@ -179,12 +188,28 @@ REPORT = {
     "Grambank feature sections (top 15)": """
         SELECT section, COUNT(*) FROM documents WHERE feature_id LIKE 'grambank:%'
         GROUP BY section ORDER BY 2 DESC LIMIT 15""",
-    "Feature card of WALS 81A": """
-        SELECT text FROM documents WHERE feature_id = 'wals:81A'""",
-    "Feature card of WALS 81B": """
-        SELECT text FROM documents WHERE feature_id = 'wals:81B'""",
-    "Feature card of Grambank GB020": """
-        SELECT text FROM documents WHERE feature_id = 'grambank:GB020' AND section = 'Summary'""",
+    "Name index: keys / languoids reachable / languages reachable": """
+        SELECT COUNT(DISTINCT key), COUNT(DISTINCT glottocode),
+               (SELECT COUNT(DISTINCT n.glottocode) FROM name_index n
+                JOIN languoids l USING (glottocode) WHERE l.level = 'language')
+        FROM name_index""",
+    "Name index by origin": """
+        SELECT origin, COUNT(*) FROM name_index GROUP BY origin ORDER BY 2 DESC""",
+    "Glottocodes with several WALS entries": """
+        SELECT COUNT(*) FROM (
+            SELECT glottocode FROM source_languages WHERE source = 'wals'
+            AND glottocode IS NOT NULL GROUP BY glottocode HAVING COUNT(*) > 1)""",
+    "Languages without own data whose dialects have data": """
+        SELECT COUNT(DISTINCT l.parent_language_id) FROM languoids l
+        WHERE l.level = 'dialect'
+          AND l.glottocode IN (SELECT glottocode FROM source_languages
+                               WHERE source IN ('wals', 'grambank'))
+          AND l.parent_language_id NOT IN (SELECT glottocode FROM source_languages
+                                           WHERE glottocode IS NOT NULL
+                                             AND source IN ('wals', 'grambank'))""",
+    "Glottolog status codes (aes, med)": """
+        SELECT c.feature_id, c.name, c.description FROM codes c
+        WHERE c.feature_id IN ('glottolog:aes', 'glottolog:med') ORDER BY c.rowid""",
 }
 
 
@@ -338,6 +363,7 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
             load_structure(conn, source, archives[source.name])
         load_chapters(conn, archives[WALS.name])
         load_documents(conn)
+        load_name_index(conn)
         conn.execute("ANALYZE")
     partial.replace(db_path)
     return db_path
