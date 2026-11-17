@@ -93,3 +93,10 @@ def test_equal_scores_are_ordered_by_document_id(conn):
 
 def test_snippet_highlights_matched_words(conn):
     assert "[verb]" in search(conn, "verb")[0].snippet
+
+
+def test_language_filter_keeps_only_texts_mentioning_it(conn):
+    assert [hit.title for hit in search(conn, "verb first", glottocode="iris1253")] == [
+        "Order of Subject, Object and Verb"
+    ]
+    assert search(conn, "colour", glottocode="iris1253") == []

@@ -16,9 +16,16 @@ STOPWORDS = frozenset(
 
 SEARCH = """
     SELECT d.id, -bm25(documents_fts, 3.0, 2.0, 1.0) AS score, d.kind, d.title, d.section,
-           d.text, d.url, snippet(documents_fts, 2, '[', ']', ' ... ', 32)
+           d.text, d.url, snippet(documents_fts, 2, '[', ']', ' ... ', 32), d.feature_id
     FROM documents_fts JOIN documents d ON d.id = documents_fts.rowid
-    WHERE documents_fts MATCH ? ORDER BY score DESC, d.id LIMIT ?"""
+    WHERE documents_fts MATCH :match {language_filter}
+    ORDER BY score DESC, d.id LIMIT :limit"""
+ANY_DOCUMENT = SEARCH.format(language_filter="")
+# Only chapter texts that mention the language: feature cards are about all languages.
+MENTIONING = SEARCH.format(
+    language_filter="AND d.id IN (SELECT document_id FROM document_languages "
+    "WHERE glottocode = :glottocode)"
+)
 
 URLS = """
     SELECT c.url FROM document_chapters dc JOIN chapters c ON c.id = dc.chapter_id
@@ -35,6 +42,7 @@ class Hit:
     text: str
     urls: tuple[str, ...]
     snippet: str
+    feature_id: str | None = None
 
 
 def to_match_query(question: str) -> str:
@@ -43,18 +51,25 @@ def to_match_query(question: str) -> str:
     return " OR ".join(f'"{word}"' for word in dict.fromkeys(words))
 
 
-def search(conn: sqlite3.Connection, question: str, limit: int = 5) -> list[Hit]:
-    """Return the best-matching documents for the question, ranked by BM25."""
+def search(
+    conn: sqlite3.Connection, question: str, limit: int = 5, glottocode: str | None = None
+) -> list[Hit]:
+    """Return the best-matching documents for the question, ranked by BM25.
+
+    With a glottocode, only chapter texts that mention that language are searched.
+    """
     match = to_match_query(question)
     if not match:
         return []
+    query = MENTIONING if glottocode else ANY_DOCUMENT
+    params = {"match": match, "limit": limit, "glottocode": glottocode}
     hits = []
-    rows = conn.execute(SEARCH, (match, limit)).fetchall()
-    for document_id, score, kind, title, section, text, url, snippet in rows:
+    for row in conn.execute(query, params).fetchall():
+        document_id, score, kind, title, section, text, url, snippet, feature_id = row
         urls = [url] if url else []
-        urls += [row[0] for row in conn.execute(URLS, (document_id,))]
+        urls += [url_row[0] for url_row in conn.execute(URLS, (document_id,))]
         urls = tuple(dict.fromkeys(urls))
-        hits.append(Hit(document_id, score, kind, title, section, text, urls, snippet))
+        hits.append(Hit(document_id, score, kind, title, section, text, urls, snippet, feature_id))
     return hits
 
 
