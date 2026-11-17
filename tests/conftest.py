@@ -11,14 +11,21 @@ def archives(tmp_path):
         languoid("basq1248", "Basque", "language"),
         languoid("indo1319", "Indo-European", "family"),
         languoid("basq9999", "Basque", "dialect"),
+        languoid("tula1234", "Tula", "language"),
+        languoid("tuln1234", "Tula North", "dialect"),
     ]
     languoids[0]["ISO639P3code"] = "rus"
     languoids[3]["Language_ID"] = "basq1248"
+    languoids[5]["Language_ID"] = "tula1234"
     glottolog = structure(languoids, "aes", [("russ1263", "1")])
     glottolog["names.csv"] = [
         {"ID": "1", "Language_ID": "russ1263", "Name": "русский", "Provider": "x", "lang": "ru"}
     ]
-    grambank = structure(languoids[:2], "GB020", [("russ1263", "1"), ("basq1248", "?")])
+    grambank = structure(
+        [*languoids[:2], languoids[5]],
+        "GB020",
+        [("russ1263", "1"), ("basq1248", "?"), ("tuln1234", "1")],
+    )
     grambank["parameters.csv"][0]["Description"] = GRAMBANK_DESCRIPTION
     wals_languages = [
         {"ID": "rus", "Name": "Russian", "Glottocode": "russ1263"},

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from glotto_lens.chapters import parse_chapter
 from glotto_lens.documents import load_documents
-from glotto_lens.languages import load_name_index
+from glotto_lens.languages import load_language_index
 from glotto_lens.sources import (
     DB_PATH,
     GLOTTOLOG,
@@ -119,9 +119,17 @@ CREATE TABLE name_index (
     name TEXT NOT NULL,
     origin TEXT NOT NULL,
     PRIMARY KEY (key, glottocode, origin)
-);
+) WITHOUT ROWID;
+CREATE TABLE languoid_facts (
+    glottocode TEXT NOT NULL,
+    source TEXT NOT NULL,
+    own INTEGER NOT NULL,
+    dialects INTEGER NOT NULL,
+    PRIMARY KEY (glottocode, source)
+) WITHOUT ROWID;
 CREATE INDEX idx_values_glottocode ON feature_values (glottocode);
-CREATE INDEX idx_values_feature ON feature_values (feature_id);
+CREATE INDEX idx_values_feature_code ON feature_values (feature_id, code_id);
+CREATE INDEX idx_languoids_parent ON languoids (parent_language_id);
 CREATE INDEX idx_blocks_chapter ON blocks (chapter_id);
 CREATE INDEX idx_blocks_feature ON blocks (feature_id);
 CREATE INDEX idx_block_languages_glottocode ON block_languages (glottocode);
@@ -194,6 +202,9 @@ REPORT = {
         FROM name_index""",
     "Name index by origin": """
         SELECT origin, COUNT(*) FROM name_index GROUP BY origin ORDER BY 2 DESC""",
+    "Languoids whose profile borrows a source from dialects": """
+        SELECT source, COUNT(*) FROM languoid_facts WHERE own = 0 AND dialects > 0
+        GROUP BY source""",
     "Glottocodes with several WALS entries": """
         SELECT COUNT(*) FROM (
             SELECT glottocode FROM source_languages WHERE source = 'wals'
@@ -362,7 +373,7 @@ def build(db_path: Path = DB_PATH, archives: dict[str, Path] | None = None) -> P
             load_structure(conn, source, archives[source.name])
         load_chapters(conn, archives[WALS.name])
         load_documents(conn)
-        load_name_index(conn)
+        load_language_index(conn)
         conn.execute("ANALYZE")
     partial.replace(db_path)
     return db_path

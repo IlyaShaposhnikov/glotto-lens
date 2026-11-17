@@ -65,10 +65,9 @@ def test_unknown_or_empty_query_finds_nothing(conn):
 def test_profile_lists_wals_then_grambank_facts_with_readable_values(conn):
     profile = language_profile(conn, "basq1248")
     assert profile.facts == [
-        Fact("wals", "1A", "Feature", "no", None, "Basque"),
-        Fact("grambank", "GB020", "Feature", "not known (?)", None, "Basque"),
+        Fact("wals", "1A", "Feature", "no", None, "Basque", "bsq"),
+        Fact("grambank", "GB020", "Feature", "not known (?)", None, "Basque", "basq1248"),
     ]
-    assert not profile.from_dialects
 
 
 def test_several_entries_of_one_language_are_all_kept(conn):
@@ -87,30 +86,39 @@ def test_several_entries_of_one_language_are_all_kept(conn):
 
 
 def test_language_without_values_borrows_them_from_its_dialects(conn):
-    conn.execute(
-        "INSERT INTO languoids (glottocode, name, level) VALUES ('lang0001', 'Lang', 'language')"
-    )
-    conn.execute(
-        "INSERT INTO languoids (glottocode, name, level, parent_language_id) "
-        "VALUES ('dial0001', 'Lang North', 'dialect', 'lang0001')"
-    )
-    conn.execute(
-        "INSERT INTO source_languages VALUES ('grambank', 'dial0001', 'North', 'dial0001')"
-    )
-    conn.execute(
-        "INSERT INTO feature_values VALUES ('grambank', 'dial0001', 'dial0001', "
-        "'grambank:GB020', '1', 'grambank:GB020-1', NULL)"
-    )
-    profile = language_profile(conn, "lang0001")
-    assert profile.from_dialects
-    assert [(fact.feature, fact.value, fact.entry) for fact in profile.facts] == [
-        ("GB020", "yes", "North")
+    tula = find_languages(conn, "Tula")[0]
+    assert (tula.glottocode, tula.facts) == ("tula1234", 1)
+    facts = language_profile(conn, "tula1234").facts
+    assert [(fact.feature, fact.value, fact.entry, fact.from_dialect) for fact in facts] == [
+        ("GB020", "yes", "Tula North", True)
     ]
 
 
-def test_profile_includes_glottolog_status(conn):
-    assert language_profile(conn, "russ1263").status == {"aes": "yes"}
+def test_dialects_fill_only_the_sources_without_own_values(conn):
+    conn.execute("INSERT INTO source_languages VALUES ('wals', 'tul', 'Tula', 'tula1234')")
+    conn.execute(
+        "INSERT INTO feature_values VALUES ('wals', 'tul', 'tula1234', 'wals:1A', '1', "
+        "'wals:1A-1', NULL)"
+    )
+    facts = language_profile(conn, "tula1234").facts
+    assert [(fact.source, fact.from_dialect) for fact in facts] == [
+        ("wals", False),
+        ("grambank", True),
+    ]
 
 
-def test_profile_of_unknown_glottocode_is_none(conn):
-    assert language_profile(conn, "xxxx0000") is None
+def test_wals_code_finds_the_language(conn):
+    assert codes(find_languages(conn, "bsq")) == ["basq1248"]
+
+
+def test_entry_with_more_values_comes_first(conn):
+    conn.execute(
+        "INSERT INTO source_languages VALUES ('wals', 'rus2', 'Russian (Old)', 'russ1263')"
+    )
+    conn.execute("INSERT INTO features VALUES ('wals:2A', 'wals', '2A', 'Other', NULL, NULL)")
+    conn.executemany(
+        "INSERT INTO feature_values VALUES ('wals', 'rus2', 'russ1263', ?, '1', NULL, NULL)",
+        [("wals:1A",), ("wals:2A",)],
+    )
+    facts = [fact for fact in language_profile(conn, "russ1263").facts if fact.feature == "1A"]
+    assert [fact.entry_id for fact in facts] == ["rus2", "rus"]

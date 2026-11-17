@@ -40,7 +40,7 @@ def test_report_counts_overlap_and_unknown_values(db_path):
     result = report(db_path)
     assert result["Glottocodes shared by WALS and Grambank"] == [(2,)]
     values = result["Values: total / unknown ('?') / language without glottocode"]
-    assert ("grambank", 2, 1, 0) in values
+    assert ("grambank", 3, 1, 0) in values
     assert ("wals", 3, 0, 1) in values
 
 
@@ -104,10 +104,10 @@ def test_grambank_feature_documents_follow_description_sections(db_path):
         "Grambank feature GB020: Feature\n\n"
         "Short summary.\n\n"
         "Distribution in Grambank v1.0.3 data:\n"
-        "- yes: 1 language\n"
+        "- yes: 2 languages\n"
         "- no: 0 languages\n"
         "- not known (?): 1 language\n"
-        "Total: 2 languages"
+        "Total: 3 languages"
     )
     assert rows == [("Summary", card), ("Procedure", "Code 1 if present.")]
 

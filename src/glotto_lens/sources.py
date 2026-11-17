@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-DATA_DIR = Path(os.environ.get("GLOTTO_LENS_DATA", "data"))
+DATA_DIR = Path(os.environ.get("GLOTTO_LENS_DATA", "data")).expanduser()
 RAW_DIR = DATA_DIR / "raw"
 DB_PATH = DATA_DIR / "glottolens.sqlite"
 USER_AGENT = "glotto-lens"
@@ -47,8 +47,12 @@ def download(source: Source, raw_dir: Path = RAW_DIR) -> Path:
     raw_dir.mkdir(parents=True, exist_ok=True)
     partial = target.with_suffix(".part")
     request = Request(source.url, headers={"User-Agent": USER_AGENT})
-    with urlopen(request, timeout=300) as response, partial.open("wb") as out:
-        shutil.copyfileobj(response, out)
+    try:
+        with urlopen(request, timeout=300) as response, partial.open("wb") as out:
+            shutil.copyfileobj(response, out)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
     partial.replace(target)
     return target
 
