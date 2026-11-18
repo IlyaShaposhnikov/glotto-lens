@@ -64,6 +64,16 @@ MISSING_DATA = re.compile(
     r"|no (data|value|information)|not (record|known|available)",
     re.IGNORECASE,
 )
+# Quoted text is a name, not a sentence: "значение для признака «Are there articles?» не
+# записано" is one statement. Quotes are emptied before matching, so a question mark in a
+# feature name does not end the sentence.
+QUOTED = re.compile(r"«[^»]*»|\"[^\"]*\"|“[^”]*”")
+
+
+def admits_missing_data(text: str) -> bool:
+    """The answer says that the data is missing (see MISSING_DATA)."""
+    return bool(MISSING_DATA.search(QUOTED.sub("«»", text)))
+
 
 # Well documented languoids of a source without own coded value of a feature. These are only
 # candidates: gaps() keeps those whose gold value (dialects included) is really missing.
@@ -196,7 +206,7 @@ def score(item: Item, expected: Gold, answer: Answer) -> Score:
         correct = language and any(c.value == expected.value for c in feature_values)
     else:
         claims_value = any(c.known for c in feature_values)
-        admits = bool(MISSING_DATA.search(answer.text))
+        admits = admits_missing_data(answer.text)
         honest = language and retrieved and not claims_value and admits
     input_tokens, output_tokens = answer.tokens
     return Score(
@@ -322,7 +332,9 @@ def experiment_identity(items_path: Path) -> dict:
         "data": RELEASES,
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
-        "metrics_sha256": hashlib.sha256(MISSING_DATA.pattern.encode("utf-8")).hexdigest(),
+        "metrics_sha256": hashlib.sha256(
+            (MISSING_DATA.pattern + QUOTED.pattern).encode("utf-8")
+        ).hexdigest(),
         "retrieval": retrieval_settings(),
     }
 

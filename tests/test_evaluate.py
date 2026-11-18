@@ -98,10 +98,11 @@ def test_refusal_without_retrieval_is_not_honesty(conn):
         "Значение по соответствующему признаку в WALS не зафиксировано.",
         "Значение для признака «Есть ли артикли» (GB020) для немецкого языка не записано.",
         "WALS does not record the number of cases for Hindi.",
+        "Значение для признака «Are there definite or specific articles?» не записано.",
     ],
 )
 def test_missing_data_phrases(text):
-    assert evaluate_module.MISSING_DATA.search(text)
+    assert evaluate_module.admits_missing_data(text)
 
 
 @pytest.mark.parametrize(
@@ -117,7 +118,7 @@ def test_missing_data_phrases(text):
     ],
 )
 def test_claims_of_absence_are_not_missing_data(text):
-    assert not evaluate_module.MISSING_DATA.search(text)
+    assert not evaluate_module.admits_missing_data(text)
 
 
 def test_failing_call_is_recorded_and_the_run_goes_on(conn):
