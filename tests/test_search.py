@@ -109,3 +109,25 @@ def test_kind_filter_keeps_only_documents_of_that_kind(conn):
     )
     conn.execute("INSERT INTO documents_fts (documents_fts) VALUES ('rebuild')")
     assert [hit.kind for hit in search(conn, "verb", kind="feature")] == ["feature"]
+
+
+def test_per_feature_search_keeps_the_best_document_of_each_feature(conn):
+    rows = [
+        ("grambank:GB1", "Summary", "verb verb verb"),
+        ("grambank:GB1", "Procedure", "verb verb"),
+        ("grambank:GB1", "Examples", "verb"),
+        ("wals:1A", "Summary", "verb word"),
+    ]
+    conn.executemany(
+        "INSERT INTO documents (kind, title, section, text, position, feature_id)"
+        " VALUES ('feature', 'Card', ?, ?, 0, ?)",
+        [(section, text, feature) for feature, section, text in rows],
+    )
+    conn.execute("INSERT INTO documents_fts (documents_fts) VALUES ('rebuild')")
+    by_document = search(conn, "verb", limit=3, kind="feature")
+    assert [hit.feature_id for hit in by_document] == ["grambank:GB1"] * 3
+    by_feature = search(conn, "verb", limit=3, per_feature=True)
+    assert [(hit.feature_id, hit.section) for hit in by_feature] == [
+        ("grambank:GB1", "Summary"),
+        ("wals:1A", "Summary"),
+    ]

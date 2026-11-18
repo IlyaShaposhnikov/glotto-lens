@@ -36,7 +36,7 @@ everyday words. Examples of everyday wording and the query to give:
   "is there a word like 'the'" -> "definite articles"
   "how many cases" -> "number of cases"
   "grammatical gender" -> "number of genders sex-based gender"
-  "noun classes" -> "number of genders noun classes"
+  "noun classes" -> "number of genders"
   "is it a tone language" -> "tone"
   "how is plural formed" -> "coding of nominal plurality"
   "is there a word for 'to have'" -> "predicative possession"

@@ -14,12 +14,21 @@ STOPWORDS = frozenset(
     "which with".split()
 )
 
-SEARCH = """
-    SELECT d.id, -bm25(documents_fts, 3.0, 2.0, 1.0) AS score, d.kind, d.title, d.section,
-           d.text, d.url, snippet(documents_fts, 2, '[', ']', ' ... ', 32), d.feature_id
+MATCHES = """
+    SELECT d.id AS id, -bm25(documents_fts, 3.0, 2.0, 1.0) AS score, d.kind AS kind,
+           d.title AS title, d.section AS section, d.text AS text, d.url AS url,
+           snippet(documents_fts, 2, '[', ']', ' ... ', 32) AS snippet, d.feature_id AS feature_id
     FROM documents_fts JOIN documents d ON d.id = documents_fts.rowid
-    WHERE {conditions}
-    ORDER BY score DESC, d.id LIMIT :limit"""
+    WHERE {conditions}"""
+SEARCH = MATCHES + "\n    ORDER BY score DESC, id LIMIT :limit"
+# The best document of each feature: a Grambank feature has several section documents,
+# which would otherwise fill the results with one feature.
+PER_FEATURE = f"""
+    SELECT id, score, kind, title, section, text, url, snippet, feature_id FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY feature_id ORDER BY score DESC, id) AS rank
+        FROM ({MATCHES}))
+    WHERE rank = 1
+    ORDER BY score DESC, id LIMIT :limit"""
 # Only chapter texts that mention the language: feature cards are about all languages.
 MENTIONS_LANGUAGE = (
     "d.id IN (SELECT document_id FROM document_languages WHERE glottocode = :glottocode)"
@@ -55,12 +64,15 @@ def search(
     limit: int = 5,
     glottocode: str | None = None,
     kind: str | None = None,
+    per_feature: bool = False,
 ) -> list[Hit]:
     """Return the best-matching documents for the question, ranked by BM25.
 
     With a glottocode, only chapter texts that mention that language are searched; with a
     kind, only documents of that kind ("chapter" or "feature"). BM25 uses statistics of the
     whole index, so scores of differently filtered searches can be compared.
+    With per_feature, only feature documents are searched and each feature brings only its
+    best document, so the limit counts features.
     """
     match = to_match_query(question)
     if not match:
@@ -68,9 +80,11 @@ def search(
     conditions = ["documents_fts MATCH :match"]
     if glottocode:
         conditions.append(MENTIONS_LANGUAGE)
+    if per_feature:
+        kind = "feature"
     if kind:
         conditions.append("d.kind = :kind")
-    query = SEARCH.format(conditions=" AND ".join(conditions))
+    query = (PER_FEATURE if per_feature else SEARCH).format(conditions=" AND ".join(conditions))
     params = {"match": match, "limit": limit, "glottocode": glottocode, "kind": kind}
     hits = []
     for row in conn.execute(query, params).fetchall():

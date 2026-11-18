@@ -51,13 +51,17 @@ EXPECTATIONS = ("value", "no_data")
 # questions in other languages would score as dishonest, so the set keeps to these two.
 # For a valid no_data item no cited value of the feature can be coded, so "honest" comes
 # down to: right language, feature retrieved, and one of these phrases in the answer.
+# Known limit: "не известно" also matches a claim about the language ("род неизвестен"),
+# and a phrase about another feature in the same sentence counts as well.
 MISSING_DATA = re.compile(
     r"нет (данных|значени|записанного|записей|информаци|сведени)|данных нет"
     r"|(данные|сведения|значения?) отсутству|отсутству\w* (данные|сведения|значени)"
     r"|не (содерж|указ|зафиксир)\w* (данн|значени|информаци|сведени|запис)"
-    r"|(данн|значени|сведени)\w* не (указ|зафиксир|приведен)"
+    # a value or the data, then up to 12 words naming the feature within the same sentence,
+    # then the negation: "значение по соответствующему признаку в WALS не зафиксировано"
+    r"|(данн|значени|сведени)\w*(\s+[^\s.!?;]+){0,12}?\s+не (указ|зафиксир|приведен|записан)"
     r"|не удалось найти|не ?известн"
-    r"|no (data|value|information)|not (recorded|known|available)",
+    r"|no (data|value|information)|not (record|known|available)",
     re.IGNORECASE,
 )
 
@@ -342,11 +346,15 @@ def retrieval_settings() -> dict:
 
     return {
         "text_limit": context.TEXT_LIMIT,
-        "feature_pool": context.FEATURE_POOL,
+        # features (one document each) really searched; older reports had "feature_pool",
+        # counted in documents, so the two are not comparable
+        "features_searched": context.pool_size(),
         "feature_text_limit": context.FEATURE_TEXT_LIMIT,
         "language_text_limit": context.LANGUAGE_TEXT_LIMIT,
         "max_features": context.MAX_FEATURES,
-        "search_sql_sha256": hashlib.sha256(search.SEARCH.encode("utf-8")).hexdigest(),
+        "search_sql_sha256": hashlib.sha256(
+            (search.SEARCH + search.PER_FEATURE).encode("utf-8")
+        ).hexdigest(),
         "stopwords": sorted(search.STOPWORDS),
     }
 
@@ -371,14 +379,11 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument(
         "--retrieval-only", action="store_true", help="score language and retrieval only"
     )
-    parser.add_argument("--feature-pool", type=_non_negative, help="override FEATURE_POOL")
     parser.add_argument(
         "--feature-text-limit", type=_non_negative, help="override FEATURE_TEXT_LIMIT"
     )
     parser.add_argument("--max-features", type=_non_negative, help="override MAX_FEATURES")
     args = parser.parse_args(argv)
-    if args.feature_pool is not None:
-        context_settings.FEATURE_POOL = args.feature_pool
     if args.feature_text_limit is not None:
         context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit
     if args.max_features is not None:

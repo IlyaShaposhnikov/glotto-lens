@@ -5,10 +5,12 @@ evidence with a label ([V1], [T1]) and a link, so an answer can cite what it rel
 
 Which features to report values for:
 - feature documents (cards and their sections) name their feature exactly, so they decide.
-  Features are chosen from a wide pool of FEATURE_POOL feature documents, because one
-  Grambank feature has several section documents and a narrow pool holds only a few
-  features. Only the best FEATURE_TEXT_LIMIT of them are shown as texts, so a wider pool
-  adds value lines (one short line per feature), not long passages;
+  Features are chosen from a pool of the best-matching features, each with its best
+  document only (MAX_FEATURES of them, or more when more texts are shown): a Grambank
+  feature has several section documents, which would otherwise fill the pool with one
+  feature. The best documents of the first
+  FEATURE_TEXT_LIMIT features are shown as texts; the other features add value lines (one
+  short line per feature), not long passages;
 - only when no feature document matches, the chapter of the best chapter text decides.
 Chapter texts found because they mention the language are kept only if their chapter
 describes one of those features; otherwise they are mentions of the language on
@@ -33,8 +35,7 @@ from glotto_lens.search import Hit, search
 from glotto_lens.sources import DB_PATH
 
 TEXT_LIMIT = 5
-FEATURE_POOL = 20  # feature documents searched to choose the features
-FEATURE_TEXT_LIMIT = 3  # of them, shown as texts
+FEATURE_TEXT_LIMIT = 3  # of their documents, shown as texts
 LANGUAGE_TEXT_LIMIT = 3
 MAX_FEATURES = 8
 VALUE_URLS = {
@@ -117,6 +118,12 @@ def related_features(conn: sqlite3.Connection, hits: list[Hit]) -> list[str]:
     return list(dict.fromkeys(features))
 
 
+def pool_size() -> int:
+    """How many features are searched. The pool has one document per feature, so features
+    beyond MAX_FEATURES would be dropped anyway; it still covers the shown texts."""
+    return max(MAX_FEATURES, FEATURE_TEXT_LIMIT)
+
+
 def build_context(conn: sqlite3.Connection, question: str, language: str | None = None) -> Context:
     """Collect texts for the question and, if a language is given, its values."""
     context = Context(question, language)
@@ -126,9 +133,10 @@ def build_context(conn: sqlite3.Connection, question: str, language: str | None 
     glottocode = context.languoid.glottocode if context.languoid else None
 
     general = search(conn, question, TEXT_LIMIT)
-    pool = search(conn, question, max(FEATURE_POOL, FEATURE_TEXT_LIMIT), kind="feature")
+    pool = search(conn, question, pool_size(), per_feature=True)
     features = related_features(conn, _merge(general, pool))
-    found = _merge(general, pool[:FEATURE_TEXT_LIMIT])
+    # texts only for features whose values are shown
+    found = _merge(general, pool[: min(FEATURE_TEXT_LIMIT, MAX_FEATURES)])
     context.dropped_features = max(0, len(features) - MAX_FEATURES)
     features = features[:MAX_FEATURES]
 

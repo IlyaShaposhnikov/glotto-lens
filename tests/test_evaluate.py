@@ -95,6 +95,9 @@ def test_refusal_without_retrieval_is_not_honesty(conn):
         "No value is recorded.",
         "Значение не известно.",
         "Неизвестно, есть ли различие.",
+        "Значение по соответствующему признаку в WALS не зафиксировано.",
+        "Значение для признака «Есть ли артикли» (GB020) для немецкого языка не записано.",
+        "WALS does not record the number of cases for Hindi.",
     ],
 )
 def test_missing_data_phrases(text):
@@ -109,6 +112,8 @@ def test_missing_data_phrases(text):
         "Русский не содержит артиклей.",
         "В турецком не выражен род.",
         "Род не указывается.",
+        "Порядок слов SVO, но падеж не указывается предлогом.",
+        "Значение порядка слов — SVO. Род не указывается.",
     ],
 )
 def test_claims_of_absence_are_not_missing_data(text):
@@ -303,20 +308,20 @@ def test_retrieval_limits_can_be_overridden(db_path, tmp_path, monkeypatch):
     monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
     # main() assigns the constants directly; setting them to their own values here makes
     # monkeypatch restore them after the test.
-    for name in ("FEATURE_POOL", "FEATURE_TEXT_LIMIT", "MAX_FEATURES"):
+    for name in ("FEATURE_TEXT_LIMIT", "MAX_FEATURES"):
         monkeypatch.setattr(context, name, getattr(context, name))
     model = ScriptedModel('{"language": "Russian", "query": "feature"}')
-    args = ["run", "--retrieval-only", "--feature-pool", "30", "--feature-text-limit", "6"]
+    args = ["run", "--retrieval-only", "--feature-text-limit", "6"]
     main([*args, "--max-features", "1", "--questions", str(path)], model=model)
     (report,) = (tmp_path / "reports").glob("eval-*.json")
     data = json.loads(report.read_text(encoding="utf-8"))
     retrieval = data["retrieval"]
-    assert (retrieval["feature_pool"], retrieval["feature_text_limit"]) == (30, 6)
+    assert (retrieval["features_searched"], retrieval["feature_text_limit"]) == (6, 6)
     assert retrieval["max_features"] == 1
     assert len(data["items"][0]["features"]) == 1
 
 
-@pytest.mark.parametrize("flag", ["--feature-pool", "--feature-text-limit", "--max-features"])
+@pytest.mark.parametrize("flag", ["--limit", "--feature-text-limit", "--max-features"])
 def test_negative_limits_are_rejected(flag):
     with pytest.raises(SystemExit):
         main(["run", flag, "-1"])
@@ -352,3 +357,11 @@ def test_experiment_identity_changes_with_the_metric(tmp_path, monkeypatch):
     before = evaluate_module.experiment_identity(path)
     monkeypatch.setattr(evaluate_module, "MISSING_DATA", re.compile("no data"))
     assert evaluate_module.experiment_identity(path)["metrics_sha256"] != before["metrics_sha256"]
+
+
+def test_report_records_the_pool_really_searched(monkeypatch):
+    from glotto_lens import context
+
+    monkeypatch.setattr(context, "MAX_FEATURES", 2)
+    monkeypatch.setattr(context, "FEATURE_TEXT_LIMIT", 5)
+    assert evaluate_module.retrieval_settings()["features_searched"] == 5

@@ -69,9 +69,18 @@ def test_features_come_from_the_pool_but_only_top_documents_are_texts(conn, monk
 
 def test_a_narrow_pool_limits_the_features(conn, monkeypatch):
     monkeypatch.setattr(context_module, "TEXT_LIMIT", 0)
-    monkeypatch.setattr(context_module, "FEATURE_POOL", 1)
+    monkeypatch.setattr(context_module, "MAX_FEATURES", 1)
     monkeypatch.setattr(context_module, "FEATURE_TEXT_LIMIT", 0)
     assert len(build_context(conn, "feature distribution", "Russian").evidence) == 1
+
+
+def test_texts_are_only_about_features_with_values(conn, monkeypatch):
+    monkeypatch.setattr(context_module, "TEXT_LIMIT", 0)
+    monkeypatch.setattr(context_module, "MAX_FEATURES", 1)
+    monkeypatch.setattr(context_module, "FEATURE_TEXT_LIMIT", 6)
+    context = build_context(conn, "feature distribution", "Russian")
+    shown = {e.feature_id for e in context.evidence}
+    assert {hit.feature_id for hit in context.hits if hit.kind == "feature"} <= shown
 
 
 def test_missing_and_borrowed_values_are_explicit(conn):
