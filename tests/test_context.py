@@ -59,6 +59,21 @@ def test_language_texts_on_related_chapters_are_kept(conn, monkeypatch):
     assert [hit.kind for hit in hits] == ["feature", "chapter"]
 
 
+def test_features_come_from_the_pool_but_only_top_documents_are_texts(conn, monkeypatch):
+    monkeypatch.setattr(context_module, "TEXT_LIMIT", 0)
+    monkeypatch.setattr(context_module, "FEATURE_TEXT_LIMIT", 0)
+    context = build_context(conn, "feature distribution", "Russian")
+    assert set(values(context)) == {"grambank:GB020", "wals:1A"}
+    assert [hit for hit in context.hits if hit.kind == "feature"] == []
+
+
+def test_a_narrow_pool_limits_the_features(conn, monkeypatch):
+    monkeypatch.setattr(context_module, "TEXT_LIMIT", 0)
+    monkeypatch.setattr(context_module, "FEATURE_POOL", 1)
+    monkeypatch.setattr(context_module, "FEATURE_TEXT_LIMIT", 0)
+    assert len(build_context(conn, "feature distribution", "Russian").evidence) == 1
+
+
 def test_missing_and_borrowed_values_are_explicit(conn):
     context = build_context(conn, "feature distribution", "Tula")
     assert values(context) == {"grambank:GB020": [("yes", True)], "wals:1A": []}

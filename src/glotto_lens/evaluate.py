@@ -14,7 +14,7 @@ Metrics, per item and averaged:
 - honest (no_data items): the feature was retrieved, the answer cites no value for it and
   says that the data is missing. A refusal without retrieval is a search failure, not
   honesty;
-- invalid citations: the answer cites labels that are not in the evidence.
+- invalid citations: the answer cites labels that are not in the evidence (full runs only).
 Items that contradict the data are reported and left out of every metric.
 
 Usage:
@@ -105,7 +105,7 @@ class Score:
     retrieved: bool = False
     correct: bool | None = None  # value items only
     honest: bool | None = None  # no_data items only
-    invalid_citations: int = 0
+    invalid_citations: int | None = None  # None when no answer was generated
     rewrite_ok: bool = True
     complete: bool = True
     error: str | None = None
@@ -251,7 +251,7 @@ def summarize(scores: list[Score]) -> dict[str, str]:
     return {
         "items": str(len(scores)),
         "errors (left out of the metrics below)": str(len(scores) - len(answered)),
-        "degraded (rewrite unreadable or answer cut)": str(
+        "degraded (a model reply unreadable or cut off)": str(
             sum(not (s.rewrite_ok and s.complete) for s in answered)
         ),
         "language resolved": _share([s.language for s in answered]),
@@ -260,7 +260,9 @@ def summarize(scores: list[Score]) -> dict[str, str]:
             [s.correct for s in answered if s.correct is not None]
         ),
         "honest about missing data": _share([s.honest for s in answered if s.honest is not None]),
-        "answers without invalid citations": _share([s.invalid_citations == 0 for s in answered]),
+        "answers without invalid citations": _share(
+            [s.invalid_citations == 0 for s in answered if s.invalid_citations is not None]
+        ),
         "tokens (in / out)": (
             f"{sum(s.input_tokens for s in scores)} / {sum(s.output_tokens for s in scores)}"
         ),
@@ -340,6 +342,7 @@ def retrieval_settings() -> dict:
 
     return {
         "text_limit": context.TEXT_LIMIT,
+        "feature_pool": context.FEATURE_POOL,
         "feature_text_limit": context.FEATURE_TEXT_LIMIT,
         "language_text_limit": context.LANGUAGE_TEXT_LIMIT,
         "max_features": context.MAX_FEATURES,
@@ -348,21 +351,34 @@ def retrieval_settings() -> dict:
     }
 
 
+def _non_negative(text: str) -> int:
+    value = int(text)
+    if value < 0:
+        # SQLite reads LIMIT -1 as "no limit", and a negative slice drops the last items.
+        raise argparse.ArgumentTypeError("must not be negative")
+    return value
+
+
 def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser = argparse.ArgumentParser(description="Evaluate the pipeline on known questions.")
     parser.add_argument("command", choices=("check", "gaps", "run"))
     parser.add_argument("feature", nargs="?", help="for gaps: a feature id, e.g. wals:81A")
     parser.add_argument("--questions", type=Path, default=QUESTIONS)
-    parser.add_argument("--limit", type=int, help="use only the first N items")
+    parser.add_argument("--limit", type=_non_negative, help="use only the first N items")
     parser.add_argument("--only", nargs="+", metavar="ID", help="use only these item ids")
     parser.add_argument("-m", "--model", help="model name, e.g. aliceai-llm")
     parser.add_argument("--no-cache", action="store_true", help="always call the model")
     parser.add_argument(
         "--retrieval-only", action="store_true", help="score language and retrieval only"
     )
-    parser.add_argument("--feature-text-limit", type=int, help="override FEATURE_TEXT_LIMIT")
-    parser.add_argument("--max-features", type=int, help="override MAX_FEATURES")
+    parser.add_argument("--feature-pool", type=_non_negative, help="override FEATURE_POOL")
+    parser.add_argument(
+        "--feature-text-limit", type=_non_negative, help="override FEATURE_TEXT_LIMIT"
+    )
+    parser.add_argument("--max-features", type=_non_negative, help="override MAX_FEATURES")
     args = parser.parse_args(argv)
+    if args.feature_pool is not None:
+        context_settings.FEATURE_POOL = args.feature_pool
     if args.feature_text_limit is not None:
         context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit
     if args.max_features is not None:

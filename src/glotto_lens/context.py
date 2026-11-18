@@ -4,7 +4,11 @@ This is the retrieval half of question answering. The rendered context lists eve
 evidence with a label ([V1], [T1]) and a link, so an answer can cite what it relies on.
 
 Which features to report values for:
-- feature documents (cards and their sections) name their feature exactly, so they decide;
+- feature documents (cards and their sections) name their feature exactly, so they decide.
+  Features are chosen from a wide pool of FEATURE_POOL feature documents, because one
+  Grambank feature has several section documents and a narrow pool holds only a few
+  features. Only the best FEATURE_TEXT_LIMIT of them are shown as texts, so a wider pool
+  adds value lines (one short line per feature), not long passages;
 - only when no feature document matches, the chapter of the best chapter text decides.
 Chapter texts found because they mention the language are kept only if their chapter
 describes one of those features; otherwise they are mentions of the language on
@@ -29,7 +33,8 @@ from glotto_lens.search import Hit, search
 from glotto_lens.sources import DB_PATH
 
 TEXT_LIMIT = 5
-FEATURE_TEXT_LIMIT = 3
+FEATURE_POOL = 20  # feature documents searched to choose the features
+FEATURE_TEXT_LIMIT = 3  # of them, shown as texts
 LANGUAGE_TEXT_LIMIT = 3
 MAX_FEATURES = 8
 VALUE_URLS = {
@@ -120,11 +125,10 @@ def build_context(conn: sqlite3.Connection, question: str, language: str | None 
         context.languoid, *context.other_candidates = candidates
     glottocode = context.languoid.glottocode if context.languoid else None
 
-    found = _merge(
-        search(conn, question, TEXT_LIMIT),
-        search(conn, question, FEATURE_TEXT_LIMIT, kind="feature"),
-    )
-    features = related_features(conn, found)
+    general = search(conn, question, TEXT_LIMIT)
+    pool = search(conn, question, max(FEATURE_POOL, FEATURE_TEXT_LIMIT), kind="feature")
+    features = related_features(conn, _merge(general, pool))
+    found = _merge(general, pool[:FEATURE_TEXT_LIMIT])
     context.dropped_features = max(0, len(features) - MAX_FEATURES)
     features = features[:MAX_FEATURES]
 

@@ -301,14 +301,37 @@ def test_retrieval_limits_can_be_overridden(db_path, tmp_path, monkeypatch):
     path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
     monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
-    monkeypatch.setattr(context, "FEATURE_TEXT_LIMIT", context.FEATURE_TEXT_LIMIT)
-    monkeypatch.setattr(context, "MAX_FEATURES", context.MAX_FEATURES)
+    # main() assigns the constants directly; setting them to their own values here makes
+    # monkeypatch restore them after the test.
+    for name in ("FEATURE_POOL", "FEATURE_TEXT_LIMIT", "MAX_FEATURES"):
+        monkeypatch.setattr(context, name, getattr(context, name))
     model = ScriptedModel('{"language": "Russian", "query": "feature"}')
-    args = ["run", "--retrieval-only", "--feature-text-limit", "6", "--max-features", "12"]
-    main([*args, "--questions", str(path)], model=model)
+    args = ["run", "--retrieval-only", "--feature-pool", "30", "--feature-text-limit", "6"]
+    main([*args, "--max-features", "1", "--questions", str(path)], model=model)
     (report,) = (tmp_path / "reports").glob("eval-*.json")
-    retrieval = json.loads(report.read_text(encoding="utf-8"))["retrieval"]
-    assert (retrieval["feature_text_limit"], retrieval["max_features"]) == (6, 12)
+    data = json.loads(report.read_text(encoding="utf-8"))
+    retrieval = data["retrieval"]
+    assert (retrieval["feature_pool"], retrieval["feature_text_limit"]) == (30, 6)
+    assert retrieval["max_features"] == 1
+    assert len(data["items"][0]["features"]) == 1
+
+
+@pytest.mark.parametrize("flag", ["--feature-pool", "--feature-text-limit", "--max-features"])
+def test_negative_limits_are_rejected(flag):
+    with pytest.raises(SystemExit):
+        main(["run", flag, "-1"])
+
+
+def test_retrieval_only_summary_does_not_score_citations(db_path, tmp_path, monkeypatch):
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}')
+    main(["run", "--retrieval-only", "--questions", str(path)], model=model)
+    (report,) = (tmp_path / "reports").glob("eval-*.json")
+    summary = json.loads(report.read_text(encoding="utf-8"))["summary"]
+    assert summary["answers without invalid citations"] == "- (no items to measure)"
 
 
 def test_experiment_identity_changes_with_the_prompts(tmp_path, monkeypatch):
@@ -319,3 +342,13 @@ def test_experiment_identity_changes_with_the_prompts(tmp_path, monkeypatch):
     before = evaluate_module.experiment_identity(path)
     monkeypatch.setattr(prompts, "REWRITE_SYSTEM", prompts.REWRITE_SYSTEM + " changed")
     assert evaluate_module.experiment_identity(path)["prompts_sha256"] != before["prompts_sha256"]
+
+
+def test_experiment_identity_changes_with_the_metric(tmp_path, monkeypatch):
+    import re
+
+    path = tmp_path / "q.jsonl"
+    path.write_text("{}", encoding="utf-8")
+    before = evaluate_module.experiment_identity(path)
+    monkeypatch.setattr(evaluate_module, "MISSING_DATA", re.compile("no data"))
+    assert evaluate_module.experiment_identity(path)["metrics_sha256"] != before["metrics_sha256"]
