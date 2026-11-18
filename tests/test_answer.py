@@ -95,6 +95,8 @@ def test_cited_labels_reads_single_and_listed_labels(text, labels):
 def test_mark_invalid_leaves_valid_labels_alone():
     assert mark_invalid("[V1, V10] [V1]", ["V1"]) == "[V1?, V10] [V1?]"
     assert mark_invalid("[V1]", []) == "[V1]"
+    assert mark_invalid("[v 9] and V9 outside", ["V9"]) == "[v 9?] and V9 outside"
+    assert mark_invalid("[V9?]", ["V9"]) == "[V9?]"
 
 
 def test_question_cannot_close_its_block_and_fake_evidence(conn):

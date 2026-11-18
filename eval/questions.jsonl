@@ -1,30 +1,35 @@
-{"id": "rus-81A", "question": "Какой базовый порядок слов в русском языке?", "language": "Russian", "feature": "wals:81A", "expect": "value"}
-{"id": "jpn-81A", "question": "Где в японском предложении обычно стоит глагол?", "language": "Japanese", "feature": "wals:81A", "expect": "value"}
-{"id": "iri-81A", "question": "Правда ли, что в ирландском глагол стоит в начале предложения?", "language": "Irish", "feature": "wals:81A", "expect": "value"}
-{"id": "tur-81A", "question": "Какой порядок подлежащего, дополнения и глагола в турецком?", "language": "Turkish", "feature": "wals:81A", "expect": "value"}
-{"id": "bsq-37A", "question": "Есть ли в баскском определенный артикль?", "language": "Basque", "feature": "wals:37A", "expect": "value"}
-{"id": "rus-37A", "question": "Есть ли в русском языке артикли вроде английского the?", "language": "Russian", "feature": "wals:37A", "expect": "value"}
-{"id": "ger-38A", "question": "Как в немецком выражается неопределенность существительного: есть ли неопределенный артикль?", "language": "German", "feature": "wals:38A", "expect": "value"}
-{"id": "fin-49A", "question": "Сколько падежей в финском языке?", "language": "Finnish", "feature": "wals:49A", "expect": "value"}
-{"id": "hun-49A", "question": "Сколько падежей у существительных в венгерском?", "language": "Hungarian", "feature": "wals:49A", "expect": "value"}
-{"id": "eng-49A", "question": "Есть ли в английском падежи у существительных?", "language": "English", "feature": "wals:49A", "expect": "value"}
-{"id": "rus-30A", "question": "Сколько грамматических родов в русском языке?", "language": "Russian", "feature": "wals:30A", "expect": "value"}
-{"id": "swa-30A", "question": "Сколько именных классов или родов в суахили?", "language": "Swahili", "feature": "wals:30A", "expect": "value"}
-{"id": "tur-30A", "question": "Есть ли в турецком грамматический род?", "language": "Turkish", "feature": "wals:30A", "expect": "value"}
-{"id": "mnd-13A", "question": "Является ли китайский (путунхуа) тоновым языком?", "language": "Mandarin Chinese", "feature": "wals:13A", "expect": "value"}
-{"id": "yor-13A", "question": "Есть ли тоны в языке йоруба?", "language": "Yoruba", "feature": "wals:13A", "expect": "value"}
-{"id": "rus-13A", "question": "Есть ли в русском языке тоны?", "language": "Russian", "feature": "wals:13A", "expect": "value"}
-{"id": "ind-33A", "question": "Как в индонезийском образуется множественное число существительных?", "language": "Indonesian", "feature": "wals:33A", "expect": "value"}
-{"id": "rus-117A", "question": "Как в русском выражается обладание, есть ли глагол «иметь» в основной конструкции?", "language": "Russian", "feature": "wals:117A", "expect": "value"}
-{"id": "haw-1A", "question": "Много ли согласных в гавайском языке?", "language": "Hawaiian", "feature": "wals:1A", "expect": "value"}
-{"id": "geo-1A", "question": "Насколько велик набор согласных в грузинском?", "language": "Georgian", "feature": "wals:1A", "expect": "value"}
-{"id": "eng-2A", "question": "Сколько гласных фонем различает английский язык?", "language": "English", "feature": "wals:2A", "expect": "value"}
-{"id": "jpn-85A", "question": "В японском предлоги или послелоги?", "language": "Japanese", "feature": "wals:85A", "expect": "value"}
-{"id": "fra-87A", "question": "Где во французском стоит прилагательное относительно существительного?", "language": "French", "feature": "wals:87A", "expect": "value"}
-{"id": "taga-GB028", "question": "Различает ли тагальский инклюзивное и эксклюзивное «мы»?", "language": "Tagalog", "feature": "grambank:GB028", "expect": "value"}
-{"id": "rus-GB020", "question": "Есть ли в русском определенный артикль по данным Grambank?", "language": "Russian", "feature": "grambank:GB020", "expect": "value"}
-{"id": "taga-GB081", "question": "Есть ли в тагальском продуктивные инфиксы в глаголах?", "language": "Tagalog", "feature": "grambank:GB081", "expect": "value"}
-{"id": "ger-GB020", "question": "Есть ли в немецком определенный артикль по данным Grambank?", "language": "German", "feature": "grambank:GB020", "expect": "no_data"}
-{"id": "ger-GB028", "question": "Различает ли немецкий инклюзивное и эксклюзивное «мы» по данным Grambank?", "language": "German", "feature": "grambank:GB028", "expect": "no_data"}
-{"id": "ger-GB024", "question": "Каков порядок числительного и существительного в немецком по данным Grambank?", "language": "German", "feature": "grambank:GB024", "expect": "no_data"}
-{"id": "ger-GB150", "question": "Есть ли в немецком цепочки клауз (clause chaining) по данным Grambank?", "language": "German", "feature": "grambank:GB150", "expect": "no_data"}
+{"id": "rus-81A", "question": "Какой базовый порядок слов в русском языке?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:81A", "expect": "value"}
+{"id": "jpn-81A", "question": "Где чаще всего располагается глагол в японском предложении: в начале, в середине или в конце?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:81A", "expect": "value"}
+{"id": "iri-81A", "question": "Правда ли, что в ирландском глагол стоит в начале предложения?", "language": "Irish", "glottocode": "iris1253", "feature": "wals:81A", "expect": "value"}
+{"id": "tur-81A", "question": "Какой порядок подлежащего, дополнения и глагола в турецком?", "language": "Turkish", "glottocode": "nucl1301", "feature": "wals:81A", "expect": "value"}
+{"id": "bsq-37A", "question": "Есть ли в баскском определенный артикль?", "language": "Basque", "glottocode": "basq1248", "feature": "wals:37A", "expect": "value"}
+{"id": "rus-37A", "question": "Есть ли в русском языке артикли вроде английского the?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:37A", "expect": "value"}
+{"id": "ger-38A", "question": "Как в немецком выражается неопределенность существительного: есть ли неопределенный артикль?", "language": "German", "glottocode": "stan1295", "feature": "wals:38A", "expect": "value"}
+{"id": "fin-49A", "question": "Сколько падежей в финском языке?", "language": "Finnish", "glottocode": "finn1318", "feature": "wals:49A", "expect": "value"}
+{"id": "hun-49A", "question": "Сколько падежей у существительных в венгерском?", "language": "Hungarian", "glottocode": "hung1274", "feature": "wals:49A", "expect": "value"}
+{"id": "eng-49A", "question": "Есть ли в английском падежи у существительных?", "language": "English", "glottocode": "stan1293", "feature": "wals:49A", "expect": "value"}
+{"id": "rus-30A", "question": "Сколько грамматических родов в русском языке?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:30A", "expect": "value"}
+{"id": "swa-30A", "question": "Сколько именных классов или родов в суахили?", "language": "Swahili", "glottocode": "swah1253", "feature": "wals:30A", "expect": "value"}
+{"id": "tur-30A", "question": "Есть ли в турецком грамматический род?", "language": "Turkish", "glottocode": "nucl1301", "feature": "wals:30A", "expect": "value"}
+{"id": "mnd-13A", "question": "Является ли китайский (путунхуа) тоновым языком?", "language": "Mandarin Chinese", "glottocode": "mand1415", "feature": "wals:13A", "expect": "value"}
+{"id": "yor-13A", "question": "Есть ли тоны в языке йоруба?", "language": "Yoruba", "glottocode": "yoru1245", "feature": "wals:13A", "expect": "value"}
+{"id": "rus-13A", "question": "Есть ли в русском языке тоны?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:13A", "expect": "value"}
+{"id": "ind-33A", "question": "Каким способом в индонезийском языке обычно образуется множественное число существительных?", "language": "Indonesian", "glottocode": "indo1316", "feature": "wals:33A", "expect": "value"}
+{"id": "rus-117A", "question": "Как в русском выражается обладание, есть ли глагол «иметь» в основной конструкции?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:117A", "expect": "value"}
+{"id": "haw-1A", "question": "Можно ли назвать гавайский язык богатым на согласные звуки?", "language": "Hawaiian", "glottocode": "hawa1245", "feature": "wals:1A", "expect": "value"}
+{"id": "geo-1A", "question": "Насколько разнообразен набор согласных звуков в грузинском языке?", "language": "Georgian", "glottocode": "nucl1302", "feature": "wals:1A", "expect": "value"}
+{"id": "eng-2A", "question": "Сколько гласных фонем различает английский язык?", "language": "English", "glottocode": "stan1293", "feature": "wals:2A", "expect": "value"}
+{"id": "jpn-85A", "question": "В японском предлоги или послелоги?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:85A", "expect": "value"}
+{"id": "fra-87A", "question": "Где во французском стоит прилагательное относительно существительного?", "language": "French", "glottocode": "stan1290", "feature": "wals:87A", "expect": "value"}
+{"id": "taga-GB028", "question": "Различает ли тагальский инклюзивное и эксклюзивное «мы»?", "language": "Tagalog", "glottocode": "taga1270", "feature": "grambank:GB028", "expect": "value"}
+{"id": "rus-GB020", "question": "Есть ли в русском определенный артикль по данным Grambank?", "language": "Russian", "glottocode": "russ1263", "feature": "grambank:GB020", "expect": "value"}
+{"id": "taga-GB081", "question": "Есть ли в тагальском продуктивные инфиксы в глаголах?", "language": "Tagalog", "glottocode": "taga1270", "feature": "grambank:GB081", "expect": "value"}
+{"id": "ger-GB020", "question": "Есть ли в немецком определенный артикль по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB020", "expect": "no_data"}
+{"id": "ger-GB028", "question": "Различает ли немецкий инклюзивное и эксклюзивное «мы» по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB028", "expect": "no_data"}
+{"id": "ger-GB024", "question": "Каков порядок числительного и существительного в немецком по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB024", "expect": "no_data"}
+{"id": "ger-GB150", "question": "Есть ли в немецком цепочки клауз (clause chaining) по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB150", "expect": "no_data"}
+{"id": "kom-30A", "question": "Есть ли грамматический род в коми-зырянском языке?", "language": "Komi-Zyrian", "glottocode": "komi1268", "feature": "wals:30A", "expect": "value"}
+{"id": "mao-2A", "question": "Сколько гласных фонем в языке маори по данным WALS?", "language": "Maori", "glottocode": "maor1246", "feature": "wals:2A", "expect": "value"}
+{"id": "arb-81A", "question": "Какой базовый порядок слов в литературном арабском: SVO, SOV или VSO?", "language": "Standard Arabic", "glottocode": "stan1318", "feature": "wals:81A", "expect": "value"}
+{"id": "fra-87A-b", "question": "Если перевести «красивый дом» на французский, что будет первым — прилагательное или существительное?", "language": "French", "glottocode": "stan1290", "feature": "wals:87A", "expect": "value"}
+{"id": "jpn-85A-b", "question": "Представьте, что вы учите японский. Где ставится предлог — до или после существительного?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:85A", "expect": "value"}

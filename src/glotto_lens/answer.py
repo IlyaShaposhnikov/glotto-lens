@@ -96,11 +96,7 @@ def cited_labels(text: str) -> list[str]:
     """
     labels = []
     for group in BRACKETS.findall(text):
-        labels += [
-            label.upper().replace(" ", "")
-            for label in LABEL.findall(group)
-            if re.fullmatch(r"[VTvt]\s?\d+", label)
-        ]
+        labels += [label.upper().replace(" ", "") for label in LABEL.findall(group)]
     return list(dict.fromkeys(labels))
 
 
@@ -117,7 +113,9 @@ def mark_invalid(text: str, invalid: list[str]) -> str:
     """Flag unknown labels inside the answer text: [V9] becomes [V9?]."""
     if not invalid:
         return text
-    pattern = re.compile(r"\b(" + "|".join(map(re.escape, invalid)) + r")\b(?!\?)")
+    # Match the labels as the model wrote them: [v 9] is the invalid label V9 too.
+    variants = [rf"{label[0]}\s?{label[1:]}" for label in invalid]
+    pattern = re.compile(r"\b(" + "|".join(variants) + r")\b(?!\?)", re.IGNORECASE)
     return BRACKETS.sub(lambda match: "[" + pattern.sub(r"\1?", match.group(1)) + "]", text)
 
 
