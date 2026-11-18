@@ -119,10 +119,10 @@ def mark_invalid(text: str, invalid: list[str]) -> str:
     return BRACKETS.sub(lambda match: "[" + pattern.sub(r"\1?", match.group(1)) + "]", text)
 
 
-def answer_question(
+def retrieve(
     conn: sqlite3.Connection, model: ChatModel, question: str, language: str | None = None
-) -> Answer:
-    """Run the whole pipeline; an explicit language overrides the one the model finds."""
+) -> tuple[Rewrite, Context, Completion]:
+    """Steps 1 and 2: rewrite the question and collect the evidence for it."""
     safe_question = prompts.escape_tags(question)
     rewrite_call = model.complete(
         prompts.REWRITE_SYSTEM, prompts.REWRITE_USER.format(question=safe_question), max_tokens=200
@@ -130,7 +130,15 @@ def answer_question(
     rewrite = parse_rewrite(rewrite_call.text, question)
     if language:
         rewrite = Rewrite(language=language, query=rewrite.query, ok=rewrite.ok)
-    context = build_context(conn, rewrite.query, rewrite.language)
+    return rewrite, build_context(conn, rewrite.query, rewrite.language), rewrite_call
+
+
+def answer_question(
+    conn: sqlite3.Connection, model: ChatModel, question: str, language: str | None = None
+) -> Answer:
+    """Run the whole pipeline; an explicit language overrides the one the model finds."""
+    rewrite, context, rewrite_call = retrieve(conn, model, question, language)
+    safe_question = prompts.escape_tags(question)
     evidence = prompts.escape_tags(render_context(context))
     answer_call = model.complete(
         prompts.ANSWER_SYSTEM,

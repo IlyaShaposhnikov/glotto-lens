@@ -35,8 +35,9 @@ from contextlib import closing
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from glotto_lens import context as context_settings
 from glotto_lens import prompts
-from glotto_lens.answer import Answer, answer_question
+from glotto_lens.answer import Answer, answer_question, retrieve
 from glotto_lens.documents import RELEASES
 from glotto_lens.languages import KNOWN_FACTS, find_languages, language_profile
 from glotto_lens.llm import CachedModel, ChatModel, YandexModel
@@ -48,12 +49,14 @@ EXPECTATIONS = ("value", "no_data")
 # How an answer says that the data is missing. This is part of the metric's definition,
 # so every phrase is covered by a test. Only Russian and English answers are recognised:
 # questions in other languages would score as dishonest, so the set keeps to these two.
+# For a valid no_data item no cited value of the feature can be coded, so "honest" comes
+# down to: right language, feature retrieved, and one of these phrases in the answer.
 MISSING_DATA = re.compile(
     r"нет (данных|значени|записанного|записей|информаци|сведени)|данных нет"
     r"|(данные|сведения|значения?) отсутству|отсутству\w* (данные|сведения|значени)"
     r"|не (содерж|указ|зафиксир)\w* (данн|значени|информаци|сведени|запис)"
     r"|(данн|значени|сведени)\w* не (указ|зафиксир|приведен)"
-    r"|не удалось найти"
+    r"|не удалось найти|не ?известн"
     r"|no (data|value|information)|not (recorded|known|available)",
     re.IGNORECASE,
 )
@@ -106,6 +109,8 @@ class Score:
     rewrite_ok: bool = True
     complete: bool = True
     error: str | None = None
+    query: str = ""
+    features: tuple[str, ...] = ()  # the features shown to the model, in order
     input_tokens: int = 0
     output_tokens: int = 0
     answer: str = ""
@@ -204,9 +209,33 @@ def score(item: Item, expected: Gold, answer: Answer) -> Score:
         invalid_citations=len(answer.invalid_labels),
         rewrite_ok=answer.rewrite.ok,
         complete=answer.complete,
+        query=answer.rewrite.query,
+        features=tuple(e.feature_id for e in context.evidence),
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         answer=answer.text,
+    )
+
+
+def score_retrieval(item: Item, expected: Gold, rewrite, context, call) -> Score:
+    """Score only language and retrieval: no answer is generated."""
+    glottocode = context.languoid.glottocode if context.languoid else None
+    features = tuple(e.feature_id for e in context.evidence)
+    return Score(
+        id=item.id,
+        question=item.question,
+        expect=item.expect,
+        gold_glottocode=expected.glottocode,
+        gold_value=expected.value,
+        glottocode=glottocode,
+        language=glottocode == expected.glottocode,
+        retrieved=item.feature in features,
+        rewrite_ok=rewrite.ok,
+        complete=call.complete,
+        query=rewrite.query,
+        features=features,
+        input_tokens=0 if call.cached else call.input_tokens,
+        output_tokens=0 if call.cached else call.output_tokens,
     )
 
 
@@ -228,11 +257,9 @@ def summarize(scores: list[Score]) -> dict[str, str]:
         "language resolved": _share([s.language for s in answered]),
         "feature retrieved": _share([s.retrieved for s in answered]),
         "correct (language and cited value)": _share(
-            [bool(s.correct) for s in answered if s.expect == "value"]
+            [s.correct for s in answered if s.correct is not None]
         ),
-        "honest about missing data": _share(
-            [bool(s.honest) for s in answered if s.expect == "no_data"]
-        ),
+        "honest about missing data": _share([s.honest for s in answered if s.honest is not None]),
         "answers without invalid citations": _share([s.invalid_citations == 0 for s in answered]),
         "tokens (in / out)": (
             f"{sum(s.input_tokens for s in scores)} / {sum(s.output_tokens for s in scores)}"
@@ -241,14 +268,24 @@ def summarize(scores: list[Score]) -> dict[str, str]:
 
 
 def evaluate_items(
-    conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item]
+    conn: sqlite3.Connection,
+    model: ChatModel,
+    items: Iterable[Item],
+    retrieval_only: bool = False,
 ) -> Iterator[Score]:
-    """Score items one by one; a failing call is recorded as an error and the run goes on."""
+    """Score items one by one; a failing call is recorded as an error and the run goes on.
+
+    With retrieval_only, only the rewrite is requested (usually from the cache), so
+    retrieval settings can be compared for free.
+    """
     for item in items:
         expected = Gold(item.glottocode, None)
         try:
             expected = gold(conn, item)
-            yield score(item, expected, answer_question(conn, model, item.question))
+            if retrieval_only:
+                yield score_retrieval(item, expected, *retrieve(conn, model, item.question))
+            else:
+                yield score(item, expected, answer_question(conn, model, item.question))
         except Exception as error:  # noqa: BLE001 - one bad call must not lose a paid run
             yield Score(
                 id=item.id,
@@ -279,6 +316,7 @@ def experiment_identity(items_path: Path) -> dict:
         "data": RELEASES,
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
+        "metrics_sha256": hashlib.sha256(MISSING_DATA.pattern.encode("utf-8")).hexdigest(),
         "retrieval": retrieval_settings(),
     }
 
@@ -319,7 +357,16 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument("--only", nargs="+", metavar="ID", help="use only these item ids")
     parser.add_argument("-m", "--model", help="model name, e.g. aliceai-llm")
     parser.add_argument("--no-cache", action="store_true", help="always call the model")
+    parser.add_argument(
+        "--retrieval-only", action="store_true", help="score language and retrieval only"
+    )
+    parser.add_argument("--feature-text-limit", type=int, help="override FEATURE_TEXT_LIMIT")
+    parser.add_argument("--max-features", type=int, help="override MAX_FEATURES")
     args = parser.parse_args(argv)
+    if args.feature_text_limit is not None:
+        context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit
+    if args.max_features is not None:
+        context_settings.MAX_FEATURES = args.max_features
     with closing(sqlite3.connect(DB_PATH)) as conn:
         if args.command == "gaps":
             if not args.feature:
@@ -361,28 +408,34 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
         report = REPORTS / f"eval-{safe_name}-{stamp}-{time.time_ns() % 10**6:06d}.json"
         scores: list[Score] = []
         try:
-            for number, s in enumerate(evaluate_items(conn, model, usable), start=1):
+            runs = evaluate_items(conn, model, usable, args.retrieval_only)
+            for number, s in enumerate(runs, start=1):
                 scores.append(s)
                 verdict = s.error or (s.correct if s.correct is not None else s.honest)
+                missing = "" if s.retrieved else f" query={s.query!r} features={list(s.features)}"
                 print(
                     f"[{number}/{len(usable)}] {s.id}: language={s.language} "
-                    f"retrieved={s.retrieved} ok={verdict}",
+                    f"retrieved={s.retrieved} ok={verdict}{missing}",
                     flush=True,
                 )
         finally:
             summary = summarize(scores)
-            write_report(
-                report,
-                {
-                    "model": model.name,
-                    **experiment_identity(args.questions),
-                    "selection": {"only": args.only, "limit": args.limit},
-                    "finished": len(scores) == len(usable),
-                    "left_out": problems,
-                    "summary": summary,
-                    "items": [asdict(s) for s in scores],
-                },
-            )
+            try:
+                write_report(
+                    report,
+                    {
+                        "model": model.name,
+                        "mode": "retrieval only" if args.retrieval_only else "full",
+                        **experiment_identity(args.questions),
+                        "selection": {"only": args.only, "limit": args.limit},
+                        "finished": len(scores) == len(usable),
+                        "left_out": problems,
+                        "summary": summary,
+                        "items": [asdict(s) for s in scores],
+                    },
+                )
+            except Exception as error:  # noqa: BLE001 - never hide the original exception
+                print(f"Warning: the report could not be written: {error}", file=sys.stderr)
     print()
     for name, value in summary.items():
         print(f"{name}: {value}")

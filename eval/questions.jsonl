@@ -38,3 +38,4 @@
 {"id": "abk-GB028", "question": "Есть ли в абхазском различие инклюзивного и эксклюзивного «мы»?", "language": "Abkhaz", "glottocode": "abkh1244", "feature": "grambank:GB028", "expect": "no_data"}
 {"id": "en-swa-30A", "question": "Does Swahili have grammatical gender or noun classes?", "language": "Swahili", "glottocode": "swah1253", "feature": "wals:30A", "expect": "value"}
 {"id": "en-jpn-81A", "question": "What is the basic word order of Japanese?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:81A", "expect": "value"}
+{"id": "en-hin-49A", "question": "How many cases does Hindi have according to WALS?", "language": "Hindi", "glottocode": "hind1269", "feature": "wals:49A", "expect": "no_data"}

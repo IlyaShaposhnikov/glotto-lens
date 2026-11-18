@@ -93,6 +93,8 @@ def test_refusal_without_retrieval_is_not_honesty(conn):
         "Не зафиксировано значений.",
         "Не удалось найти сведения.",
         "No value is recorded.",
+        "Значение не известно.",
+        "Неизвестно, есть ли различие.",
     ],
 )
 def test_missing_data_phrases(text):
@@ -262,3 +264,58 @@ def test_only_selects_items_by_id(db_path, tmp_path, monkeypatch, capsys):
     main(["run", "--questions", str(path), "--only", "tula-1A"], model=model)
     output = capsys.readouterr().out
     assert "items: 1" in output and "rus-1A" not in output
+
+
+def test_retrieval_only_mode_makes_no_answer_call(db_path, tmp_path, monkeypatch, capsys):
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}')  # one call only
+    main(["run", "--retrieval-only", "--questions", str(path)], model=model)
+    output = capsys.readouterr().out
+    assert "feature retrieved: 1/1 (100%)" in output
+    assert "correct (language and cited value): - (no items to measure)" in output
+    (report,) = (tmp_path / "reports").glob("eval-*.json")
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert data["mode"] == "retrieval only" and data["metrics_sha256"]
+    assert data["items"][0]["features"]
+
+
+def test_failed_retrieval_is_printed_with_query_and_features(
+    db_path, tmp_path, monkeypatch, capsys
+):
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    model = ScriptedModel('{"language": "Russian", "query": "zzz"}')
+    main(["run", "--retrieval-only", "--questions", str(path)], model=model)
+    assert "retrieved=False ok=None query='zzz' features=[]" in capsys.readouterr().out
+
+
+def test_retrieval_limits_can_be_overridden(db_path, tmp_path, monkeypatch):
+    from glotto_lens import context
+
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    monkeypatch.setattr(context, "FEATURE_TEXT_LIMIT", context.FEATURE_TEXT_LIMIT)
+    monkeypatch.setattr(context, "MAX_FEATURES", context.MAX_FEATURES)
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}')
+    args = ["run", "--retrieval-only", "--feature-text-limit", "6", "--max-features", "12"]
+    main([*args, "--questions", str(path)], model=model)
+    (report,) = (tmp_path / "reports").glob("eval-*.json")
+    retrieval = json.loads(report.read_text(encoding="utf-8"))["retrieval"]
+    assert (retrieval["feature_text_limit"], retrieval["max_features"]) == (6, 12)
+
+
+def test_experiment_identity_changes_with_the_prompts(tmp_path, monkeypatch):
+    from glotto_lens import prompts
+
+    path = tmp_path / "q.jsonl"
+    path.write_text("{}", encoding="utf-8")
+    before = evaluate_module.experiment_identity(path)
+    monkeypatch.setattr(prompts, "REWRITE_SYSTEM", prompts.REWRITE_SYSTEM + " changed")
+    assert evaluate_module.experiment_identity(path)["prompts_sha256"] != before["prompts_sha256"]

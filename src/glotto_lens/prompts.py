@@ -24,8 +24,10 @@ Read the question between <question> tags. It may be in any language.
 Return only a JSON object, with no other text, with two keys:
 - "language": the English name of the one language the question is about, as used in \
 Glottolog (for example "Russian", "Basque", "Mandarin Chinese"). If the question is about \
-languages in general but names one example language, give that language. Use null only \
-when no language is named;
+languages in general but names one example language, give that language. When the \
+question names a variety, give the variety, for example "Standard Arabic" for literary \
+Arabic or "Egyptian Arabic" for the Arabic of Egypt. Use null only when no language is \
+named;
 - "query": a short English search query of 3-10 words in the terminology of linguistic \
 typology, without the language name. Use the names of WALS and Grambank features, not \
 everyday words. Examples of everyday wording and the query to give:
