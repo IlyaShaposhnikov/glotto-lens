@@ -327,6 +327,17 @@ def write_report(path: Path, data: dict) -> None:
     partial.replace(path)
 
 
+def metric_fingerprint() -> str:
+    """Hash of everything that defines the honesty metric: its patterns and the code that
+    applies them. A missing source (a frozen build) must not cost a paid run its report."""
+    try:
+        source = inspect.getsource(admits_missing_data)
+    except OSError:
+        source = "source unavailable"
+    parts = (MISSING_DATA.pattern, QUOTED.pattern, QUOTED_PUNCTUATION.pattern, source)
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
 def experiment_identity(items_path: Path) -> dict:
     """What a report depends on: data releases, prompts and the question set."""
     prompt_text = "".join(
@@ -336,10 +347,7 @@ def experiment_identity(items_path: Path) -> dict:
         "data": RELEASES,
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
-        # the patterns and the code that applies them: both define the metric
-        "metrics_sha256": hashlib.sha256(
-            (MISSING_DATA.pattern + inspect.getsource(admits_missing_data)).encode("utf-8")
-        ).hexdigest(),
+        "metrics_sha256": metric_fingerprint(),
         "retrieval": retrieval_settings(),
     }
 

@@ -367,3 +367,19 @@ def test_report_records_the_pool_really_searched(monkeypatch):
     monkeypatch.setattr(context, "MAX_FEATURES", 2)
     monkeypatch.setattr(context, "FEATURE_TEXT_LIMIT", 5)
     assert evaluate_module.retrieval_settings()["features_searched"] == 5
+
+
+def test_metric_fingerprint_covers_the_quote_patterns(monkeypatch):
+    import re
+
+    before = evaluate_module.metric_fingerprint()
+    monkeypatch.setattr(evaluate_module, "QUOTED", re.compile("«[^»]*»"))
+    assert evaluate_module.metric_fingerprint() != before
+
+
+def test_metric_fingerprint_survives_missing_source(monkeypatch):
+    def unavailable(_):
+        raise OSError("no source")
+
+    monkeypatch.setattr(evaluate_module.inspect, "getsource", unavailable)
+    assert len(evaluate_module.metric_fingerprint()) == 64
