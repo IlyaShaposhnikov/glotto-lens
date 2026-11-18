@@ -5,6 +5,7 @@ from contextlib import closing
 import pytest
 
 from glotto_lens import evaluate as evaluate_module
+from glotto_lens.documents import RELEASES
 from glotto_lens.evaluate import (
     Item,
     check_items,
@@ -88,6 +89,8 @@ def test_refusal_without_retrieval_is_not_honesty(conn):
         "Данные отсутствуют.",
         "Нет записей о признаке.",
         "Значение не указано.",
+        "Grambank не содержит данных о немецком.",
+        "Не зафиксировано значений.",
         "Не удалось найти сведения.",
         "No value is recorded.",
     ],
@@ -96,7 +99,16 @@ def test_missing_data_phrases(text):
     assert evaluate_module.MISSING_DATA.search(text)
 
 
-@pytest.mark.parametrize("text", ["Артикль отсутствует.", "Падежей нет."])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Артикль отсутствует.",
+        "Падежей нет.",
+        "Русский не содержит артиклей.",
+        "В турецком не выражен род.",
+        "Род не указывается.",
+    ],
+)
 def test_claims_of_absence_are_not_missing_data(text):
     assert not evaluate_module.MISSING_DATA.search(text)
 
@@ -111,7 +123,10 @@ def test_failing_call_is_recorded_and_the_run_goes_on(conn):
     model = Broken('{"language": "Russian", "query": "feature"}', "Да [V1].")
     first, second = evaluate(conn, model, [RUSSIAN, TULA])
     assert first.correct and second.error == "ConnectionError: network down"
-    assert summarize([first, second])["errors"] == "1"
+    summary = summarize([first, second])
+    assert summary["errors (left out of the metrics below)"] == "1"
+    assert summary["honest about missing data"] == "- (no items to measure)"
+    assert summary["language resolved"] == "1/1 (100%)"
 
 
 def test_missing_data_must_be_admitted(conn):
@@ -154,6 +169,45 @@ def test_repository_question_set_is_well_formed():
     items = load_items()
     assert len(items) >= 20
     assert {item.expect for item in items} == {"value", "no_data"}
+    assert all(item.glottocode for item in items)
+
+
+def test_only_rejects_unknown_ids(db_path, monkeypatch):
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    with pytest.raises(SystemExit):
+        main(["check", "--only", "no-such-item"])
+
+
+def test_report_is_written_even_when_the_run_is_interrupted(db_path, tmp_path, monkeypatch):
+    path = tmp_path / "q.jsonl"
+    lines = [json.dumps(i.__dict__, ensure_ascii=False) for i in (RUSSIAN, TULA)]
+    path.write_text("\n".join(lines), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+
+    class Interrupted(ScriptedModel):
+        def complete(self, system, user, *, temperature=0.0, max_tokens=1500):
+            if not self.texts:
+                raise KeyboardInterrupt
+            return super().complete(system, user)
+
+    model = Interrupted('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    with pytest.raises(KeyboardInterrupt):
+        main(["run", "--questions", str(path)], model=model)
+    (report,) = (tmp_path / "reports").glob("eval-*.json")
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert data["finished"] is False and [item["id"] for item in data["items"]] == ["rus-1A"]
+
+
+def test_uncoded_text_is_not_a_claimed_value(conn):
+    conn.execute("INSERT INTO source_languages VALUES ('wals', 'tul', 'Tula', 'tula1234')")
+    conn.execute(
+        "INSERT INTO feature_values VALUES ('wals', 'tul', 'tula1234', 'wals:1A', "
+        "'unclear', NULL, NULL)"
+    )
+    model = ScriptedModel('{"language": "Tula", "query": "feature"}', "Значение не указано [V1].")
+    (result,) = evaluate(conn, model, [TULA])
+    assert result.honest is True
 
 
 def test_command_line_run_writes_a_report(db_path, tmp_path, monkeypatch, capsys):
@@ -167,7 +221,8 @@ def test_command_line_run_writes_a_report(db_path, tmp_path, monkeypatch, capsys
     (report,) = (tmp_path / "reports").glob("eval-scripted-*.json")
     data = json.loads(report.read_text(encoding="utf-8"))
     assert data["items"][0]["correct"] is True
-    assert data["data"]["wals"] == "WALS v2020.6" and data["prompts_sha256"]
+    assert data["data"] == RELEASES and data["prompts_sha256"]
+    assert data["retrieval"]["max_features"] == 8
 
 
 def test_run_leaves_out_items_that_contradict_the_data(db_path, tmp_path, monkeypatch, capsys):
@@ -184,14 +239,26 @@ def test_run_leaves_out_items_that_contradict_the_data(db_path, tmp_path, monkey
     assert "items: 1" in output
 
 
-def test_gaps_lists_languages_without_a_known_value(conn):
-    rows = evaluate_module.gaps(conn, "grambank:GB020")
-    assert [(row[0], row[3]) for row in rows] == [("basq1248", "?"), ("tula1234", None)]
-
-
 def test_command_line_check_needs_no_model(db_path, tmp_path, monkeypatch, capsys):
     path = tmp_path / "q.jsonl"
     path.write_text(json.dumps(TULA.__dict__, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
     main(["check", "--questions", str(path)])
     assert "All 1 items are consistent with the data." in capsys.readouterr().out
+
+
+def test_gaps_skip_languages_whose_dialects_have_a_value(conn):
+    codes = [row[0] for row in evaluate_module.gaps(conn, "grambank:GB020")]
+    assert "tula1234" not in codes  # Tula borrows GB020 from its dialect
+
+
+def test_only_selects_items_by_id(db_path, tmp_path, monkeypatch, capsys):
+    path = tmp_path / "q.jsonl"
+    lines = [json.dumps(i.__dict__, ensure_ascii=False) for i in (RUSSIAN, TULA)]
+    path.write_text("\n".join(lines), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    model = ScriptedModel('{"language": "Tula", "query": "feature"}', "Нет данных [V1].")
+    main(["run", "--questions", str(path), "--only", "tula-1A"], model=model)
+    output = capsys.readouterr().out
+    assert "items: 1" in output and "rus-1A" not in output

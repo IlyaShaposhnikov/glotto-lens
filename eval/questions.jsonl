@@ -25,11 +25,16 @@
 {"id": "rus-GB020", "question": "Есть ли в русском определенный артикль по данным Grambank?", "language": "Russian", "glottocode": "russ1263", "feature": "grambank:GB020", "expect": "value"}
 {"id": "taga-GB081", "question": "Есть ли в тагальском продуктивные инфиксы в глаголах?", "language": "Tagalog", "glottocode": "taga1270", "feature": "grambank:GB081", "expect": "value"}
 {"id": "ger-GB020", "question": "Есть ли в немецком определенный артикль по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB020", "expect": "no_data"}
-{"id": "ger-GB028", "question": "Различает ли немецкий инклюзивное и эксклюзивное «мы» по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB028", "expect": "no_data"}
-{"id": "ger-GB024", "question": "Каков порядок числительного и существительного в немецком по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB024", "expect": "no_data"}
 {"id": "ger-GB150", "question": "Есть ли в немецком цепочки клауз (clause chaining) по данным Grambank?", "language": "German", "glottocode": "stan1295", "feature": "grambank:GB150", "expect": "no_data"}
-{"id": "kom-30A", "question": "Есть ли грамматический род в коми-зырянском языке?", "language": "Komi-Zyrian", "glottocode": "komi1268", "feature": "wals:30A", "expect": "value"}
+{"id": "kom-30A", "question": "Есть ли грамматический род в коми-зырянском языке?", "language": "Komi-Zyrian", "glottocode": "komi1268", "feature": "wals:30A", "expect": "no_data"}
 {"id": "mao-2A", "question": "Сколько гласных фонем в языке маори по данным WALS?", "language": "Maori", "glottocode": "maor1246", "feature": "wals:2A", "expect": "value"}
 {"id": "arb-81A", "question": "Какой базовый порядок слов в литературном арабском: SVO, SOV или VSO?", "language": "Standard Arabic", "glottocode": "stan1318", "feature": "wals:81A", "expect": "value"}
 {"id": "fra-87A-b", "question": "Если перевести «красивый дом» на французский, что будет первым — прилагательное или существительное?", "language": "French", "glottocode": "stan1290", "feature": "wals:87A", "expect": "value"}
 {"id": "jpn-85A-b", "question": "Представьте, что вы учите японский. Где ставится предлог — до или после существительного?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:85A", "expect": "value"}
+{"id": "ind-81A", "question": "Какой базовый порядок слов в индонезийском языке?", "language": "Indonesian", "glottocode": "indo1316", "feature": "wals:81A", "expect": "value"}
+{"id": "hin-49A", "question": "Сколько падежей в хинди по данным WALS?", "language": "Hindi", "glottocode": "hind1269", "feature": "wals:49A", "expect": "no_data"}
+{"id": "hix-GB020", "question": "Есть ли определенный артикль в языке хишкарьяна по данным Grambank?", "language": "Hixkaryana", "glottocode": "hixk1239", "feature": "grambank:GB020", "expect": "no_data"}
+{"id": "tha-GB028", "question": "Различает ли тайский язык инклюзивное и эксклюзивное «мы» по данным Grambank?", "language": "Thai", "glottocode": "thai1261", "feature": "grambank:GB028", "expect": "no_data"}
+{"id": "abk-GB028", "question": "Есть ли в абхазском различие инклюзивного и эксклюзивного «мы»?", "language": "Abkhaz", "glottocode": "abkh1244", "feature": "grambank:GB028", "expect": "no_data"}
+{"id": "en-swa-30A", "question": "Does Swahili have grammatical gender or noun classes?", "language": "Swahili", "glottocode": "swah1253", "feature": "wals:30A", "expect": "value"}
+{"id": "en-jpn-81A", "question": "What is the basic word order of Japanese?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:81A", "expect": "value"}

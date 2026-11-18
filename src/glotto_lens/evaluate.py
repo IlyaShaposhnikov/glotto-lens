@@ -30,7 +30,7 @@ import re
 import sqlite3
 import sys
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from contextlib import closing
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -46,20 +46,24 @@ QUESTIONS = Path(__file__).resolve().parents[2] / "eval" / "questions.jsonl"
 REPORTS = DATA_DIR / "reports"
 EXPECTATIONS = ("value", "no_data")
 # How an answer says that the data is missing. This is part of the metric's definition,
-# so every phrase is covered by a test.
+# so every phrase is covered by a test. Only Russian and English answers are recognised:
+# questions in other languages would score as dishonest, so the set keeps to these two.
 MISSING_DATA = re.compile(
     r"нет (данных|значени|записанного|записей|информаци|сведени)|данных нет"
     r"|(данные|сведения|значения?) отсутству|отсутству\w* (данные|сведения|значени)"
-    r"|не (содерж|указ|зафиксир|удалось найти)"
+    r"|не (содерж|указ|зафиксир)\w* (данн|значени|информаци|сведени|запис)"
+    r"|(данн|значени|сведени)\w* не (указ|зафиксир|приведен)"
+    r"|не удалось найти"
     r"|no (data|value|information)|not (recorded|known|available)",
     re.IGNORECASE,
 )
 
-# Well documented languoids without a known value of a feature: material for no_data items.
-GAPS = f"""
+# Well documented languoids of a source without own coded value of a feature. These are only
+# candidates: gaps() keeps those whose gold value (dialects included) is really missing.
+GAP_CANDIDATES = f"""
     SELECT l.glottocode, l.name, {KNOWN_FACTS} AS facts,
-           (SELECT v.value FROM feature_values v
-            WHERE v.glottocode = l.glottocode AND v.feature_id = :feature LIMIT 1)
+           (SELECT GROUP_CONCAT(DISTINCT v.value) FROM feature_values v
+            WHERE v.glottocode = l.glottocode AND v.feature_id = :feature)
     FROM languoids l
     WHERE l.level = 'language'
       AND l.glottocode IN (SELECT glottocode FROM languoid_facts WHERE source = :source)
@@ -182,7 +186,7 @@ def score(item: Item, expected: Gold, answer: Answer) -> Score:
     if item.expect == "value":
         correct = language and any(c.value == expected.value for c in feature_values)
     else:
-        claims_value = any(c.value is not None for c in feature_values)
+        claims_value = any(c.known for c in feature_values)
         admits = bool(MISSING_DATA.search(answer.text))
         honest = language and retrieved and not claims_value and admits
     input_tokens, output_tokens = answer.tokens
@@ -207,24 +211,27 @@ def score(item: Item, expected: Gold, answer: Answer) -> Score:
 
 
 def _share(values: list[bool]) -> str:
-    return f"{sum(values)}/{len(values)} ({sum(values) / len(values):.0%})" if values else "-"
+    if not values:
+        return "- (no items to measure)"
+    return f"{sum(values)}/{len(values)} ({sum(values) / len(values):.0%})"
 
 
 def summarize(scores: list[Score]) -> dict[str, str]:
+    """Quality metrics over answered items only; failed calls are counted separately."""
     answered = [s for s in scores if s.error is None]
     return {
         "items": str(len(scores)),
-        "errors": str(len(scores) - len(answered)),
+        "errors (left out of the metrics below)": str(len(scores) - len(answered)),
         "degraded (rewrite unreadable or answer cut)": str(
             sum(not (s.rewrite_ok and s.complete) for s in answered)
         ),
-        "language resolved": _share([s.language for s in scores]),
-        "feature retrieved": _share([s.retrieved for s in scores]),
+        "language resolved": _share([s.language for s in answered]),
+        "feature retrieved": _share([s.retrieved for s in answered]),
         "correct (language and cited value)": _share(
-            [bool(s.correct) for s in scores if s.expect == "value"]
+            [bool(s.correct) for s in answered if s.expect == "value"]
         ),
         "honest about missing data": _share(
-            [bool(s.honest) for s in scores if s.expect == "no_data"]
+            [bool(s.honest) for s in answered if s.expect == "no_data"]
         ),
         "answers without invalid citations": _share([s.invalid_citations == 0 for s in answered]),
         "tokens (in / out)": (
@@ -233,42 +240,74 @@ def summarize(scores: list[Score]) -> dict[str, str]:
     }
 
 
-def evaluate(conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item]) -> list[Score]:
-    """Score every item; a failing call is recorded as an error and the run goes on."""
-    scores = []
+def evaluate_items(
+    conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item]
+) -> Iterator[Score]:
+    """Score items one by one; a failing call is recorded as an error and the run goes on."""
     for item in items:
-        expected = gold(conn, item)
+        expected = Gold(item.glottocode, None)
         try:
-            scores.append(score(item, expected, answer_question(conn, model, item.question)))
+            expected = gold(conn, item)
+            yield score(item, expected, answer_question(conn, model, item.question))
         except Exception as error:  # noqa: BLE001 - one bad call must not lose a paid run
-            scores.append(
-                Score(
-                    id=item.id,
-                    question=item.question,
-                    expect=item.expect,
-                    gold_glottocode=expected.glottocode,
-                    gold_value=expected.value,
-                    error=f"{type(error).__name__}: {error}",
-                )
+            yield Score(
+                id=item.id,
+                question=item.question,
+                expect=item.expect,
+                gold_glottocode=expected.glottocode,
+                gold_value=expected.value,
+                error=f"{type(error).__name__}: {error}",
             )
-    return scores
+
+
+def evaluate(conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item]) -> list[Score]:
+    return list(evaluate_items(conn, model, items))
+
+
+def write_report(path: Path, data: dict) -> None:
+    partial = path.with_suffix(".part")
+    partial.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    partial.replace(path)
 
 
 def experiment_identity(items_path: Path) -> dict:
     """What a report depends on: data releases, prompts and the question set."""
-    prompt_text = prompts.REWRITE_SYSTEM + prompts.ANSWER_SYSTEM + prompts.ANSWER_USER
+    prompt_text = "".join(
+        (prompts.REWRITE_SYSTEM, prompts.REWRITE_USER, prompts.ANSWER_SYSTEM, prompts.ANSWER_USER)
+    )
     return {
         "data": RELEASES,
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
+        "retrieval": retrieval_settings(),
     }
 
 
 def gaps(conn: sqlite3.Connection, feature: str, limit: int = 20) -> list[tuple]:
-    """Well documented languages of the feature's source without a known value for it."""
+    """Well documented languages without a known value of the feature, by the same rule
+    as gold(): (glottocode, name, known facts, recorded values or None)."""
     source = feature.split(":", 1)[0]
-    params = {"feature": feature, "source": source, "limit": limit}
-    return conn.execute(GAPS, params).fetchall()
+    params = {"feature": feature, "source": source, "limit": limit * 3}
+    found = []
+    for glottocode, name, facts, values in conn.execute(GAP_CANDIDATES, params).fetchall():
+        item = Item("gap", "", name, feature, "no_data", glottocode)
+        if gold(conn, item).value is None:
+            found.append((glottocode, name, facts, values))
+    return found[:limit]
+
+
+def retrieval_settings() -> dict:
+    """Retrieval constants that change results, recorded with every report."""
+    from glotto_lens import context, search
+
+    return {
+        "text_limit": context.TEXT_LIMIT,
+        "feature_text_limit": context.FEATURE_TEXT_LIMIT,
+        "language_text_limit": context.LANGUAGE_TEXT_LIMIT,
+        "max_features": context.MAX_FEATURES,
+        "search_sql_sha256": hashlib.sha256(search.SEARCH.encode("utf-8")).hexdigest(),
+        "stopwords": sorted(search.STOPWORDS),
+    }
 
 
 def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
@@ -277,6 +316,7 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument("feature", nargs="?", help="for gaps: a feature id, e.g. wals:81A")
     parser.add_argument("--questions", type=Path, default=QUESTIONS)
     parser.add_argument("--limit", type=int, help="use only the first N items")
+    parser.add_argument("--only", nargs="+", metavar="ID", help="use only these item ids")
     parser.add_argument("-m", "--model", help="model name, e.g. aliceai-llm")
     parser.add_argument("--no-cache", action="store_true", help="always call the model")
     args = parser.parse_args(argv)
@@ -284,12 +324,22 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
         if args.command == "gaps":
             if not args.feature:
                 parser.error("gaps needs a feature id")
-            for glottocode, name, facts, value in gaps(conn, args.feature, args.limit or 20):
-                state = "coded ?" if value == "?" else "no entry"
+            for glottocode, name, facts, values in gaps(conn, args.feature, args.limit or 20):
+                state = "no entry" if values is None else f"recorded: {values}"
+                if values == "?":
+                    state = "coded ?"
                 print(f"{glottocode} | {name} | {facts} known facts | {state}")
             return
-        items = load_items(args.questions)[: args.limit]
-        problems = check_items(conn, items)
+        items = load_items(args.questions)
+        if args.only:
+            wanted = set(args.only)
+            unknown = wanted - {item.id for item in items}
+            if unknown:
+                parser.error(f"unknown item ids: {', '.join(sorted(unknown))}")
+            items = [item for item in items if item.id in wanted]
+        items = items[: args.limit]
+        checked = [(item, item_problem(conn, item)) for item in items]
+        problems = [f"{item.id}: {problem}" for item, problem in checked if problem]
         if args.command == "check":
             for item in items:
                 expected = gold(conn, item)
@@ -303,27 +353,39 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
             return
         if problems:
             print("Left out, inconsistent with the data:\n" + "\n".join(problems) + "\n")
-        bad = {problem.split(":", 1)[0] for problem in problems}
+        usable = [item for item, problem in checked if problem is None]
         model = model or CachedModel(YandexModel(args.model), use_cache=not args.no_cache)
-        scores = evaluate(conn, model, [item for item in items if item.id not in bad])
-    for s in scores:
-        verdict = s.error or (s.correct if s.correct is not None else s.honest)
-        print(f"{s.id}: language={s.language} retrieved={s.retrieved} ok={verdict}")
+        REPORTS.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r"[^\w.-]", "_", model.name)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        report = REPORTS / f"eval-{safe_name}-{stamp}-{time.time_ns() % 10**6:06d}.json"
+        scores: list[Score] = []
+        try:
+            for number, s in enumerate(evaluate_items(conn, model, usable), start=1):
+                scores.append(s)
+                verdict = s.error or (s.correct if s.correct is not None else s.honest)
+                print(
+                    f"[{number}/{len(usable)}] {s.id}: language={s.language} "
+                    f"retrieved={s.retrieved} ok={verdict}",
+                    flush=True,
+                )
+        finally:
+            summary = summarize(scores)
+            write_report(
+                report,
+                {
+                    "model": model.name,
+                    **experiment_identity(args.questions),
+                    "selection": {"only": args.only, "limit": args.limit},
+                    "finished": len(scores) == len(usable),
+                    "left_out": problems,
+                    "summary": summary,
+                    "items": [asdict(s) for s in scores],
+                },
+            )
     print()
-    summary = summarize(scores)
     for name, value in summary.items():
         print(f"{name}: {value}")
-    REPORTS.mkdir(parents=True, exist_ok=True)
-    safe_name = re.sub(r"[^\w.-]", "_", model.name)
-    report = REPORTS / f"eval-{safe_name}-{time.strftime('%Y%m%d-%H%M%S')}.json"
-    data = {
-        "model": model.name,
-        **experiment_identity(args.questions),
-        "left_out": problems,
-        "summary": summary,
-        "items": [asdict(s) for s in scores],
-    }
-    report.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nReport: {report}")
 
 

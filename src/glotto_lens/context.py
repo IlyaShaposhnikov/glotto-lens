@@ -73,6 +73,7 @@ class Citation:
     url: str
     feature_id: str | None = None  # for [V…]: the feature the value belongs to
     value: str | None = None  # for [V…]: the recorded value, None when there is none
+    known: bool = False  # for [V…]: the value is coded (not '?' and not free text)
 
 
 @dataclass
@@ -179,7 +180,7 @@ def value_citations(context: Context) -> list[Citation]:
             url = VALUE_URLS[fact.source].format(feature=fact.feature, entry=fact.entry_id)
             text = f"{title}: {_value_text(fact)}"
             label = f"V{len(found) + 1}"
-            found.append(Citation(label, text, url, evidence.feature_id, fact.value))
+            found.append(Citation(label, text, url, evidence.feature_id, fact.value, fact.known))
     return found
 
 

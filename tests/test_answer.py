@@ -14,6 +14,7 @@ from glotto_lens.answer import (
     parse_rewrite,
     render_answer,
 )
+from glotto_lens.documents import RELEASES
 from glotto_lens.llm import Completion
 
 
@@ -139,7 +140,7 @@ def test_command_line_runs_with_a_given_model(db_path, tmp_path, monkeypatch, ca
     record = json.loads((tmp_path / "answers.jsonl").read_text(encoding="utf-8"))
     assert (record["glottocode"], record["model"]) == ("russ1263", "scripted")
     assert [(c["label"], c["feature"]) for c in record["cited"]] == [("V1", "wals:1A")]
-    assert record["features"] and record["data"]["wals"] == "WALS v2020.6"
+    assert record["features"] and record["data"] == RELEASES
 
 
 @pytest.mark.parametrize("value", ["null", "None", "unknown", "N/A", " "])
