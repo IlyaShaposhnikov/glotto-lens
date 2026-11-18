@@ -99,6 +99,7 @@ def test_refusal_without_retrieval_is_not_honesty(conn):
         "Значение для признака «Есть ли артикли» (GB020) для немецкого языка не записано.",
         "WALS does not record the number of cases for Hindi.",
         "Значение для признака «Are there definite or specific articles?» не записано.",
+        "В Grambank значение по признаку «есть ли различие» отмечено как «не известно» [V1].",
     ],
 )
 def test_missing_data_phrases(text):

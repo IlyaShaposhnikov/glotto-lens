@@ -25,6 +25,7 @@ Usage:
 
 import argparse
 import hashlib
+import inspect
 import json
 import re
 import sqlite3
@@ -64,15 +65,18 @@ MISSING_DATA = re.compile(
     r"|no (data|value|information)|not (record|known|available)",
     re.IGNORECASE,
 )
-# Quoted text is a name, not a sentence: "значение для признака «Are there articles?» не
-# записано" is one statement. Quotes are emptied before matching, so a question mark in a
-# feature name does not end the sentence.
+# Punctuation inside quotes does not end a sentence: in "значение для признака «Are there
+# articles?» не записано" the question mark belongs to a feature name. Only that
+# punctuation is removed; the quoted words stay, because an admission can itself be quoted:
+# "значение отмечено как «не известно»".
 QUOTED = re.compile(r"«[^»]*»|\"[^\"]*\"|“[^”]*”")
+QUOTED_PUNCTUATION = re.compile(r"[.!?;]")
 
 
 def admits_missing_data(text: str) -> bool:
     """The answer says that the data is missing (see MISSING_DATA)."""
-    return bool(MISSING_DATA.search(QUOTED.sub("«»", text)))
+    text = QUOTED.sub(lambda quote: QUOTED_PUNCTUATION.sub("", quote.group()), text)
+    return bool(MISSING_DATA.search(text))
 
 
 # Well documented languoids of a source without own coded value of a feature. These are only
@@ -332,8 +336,9 @@ def experiment_identity(items_path: Path) -> dict:
         "data": RELEASES,
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
+        # the patterns and the code that applies them: both define the metric
         "metrics_sha256": hashlib.sha256(
-            (MISSING_DATA.pattern + QUOTED.pattern).encode("utf-8")
+            (MISSING_DATA.pattern + inspect.getsource(admits_missing_data)).encode("utf-8")
         ).hexdigest(),
         "retrieval": retrieval_settings(),
     }
