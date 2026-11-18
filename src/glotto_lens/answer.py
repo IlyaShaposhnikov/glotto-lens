@@ -10,6 +10,7 @@ marked in the answer text and listed separately instead of being shown as a sour
 """
 
 import argparse
+import hashlib
 import json
 import re
 import sqlite3
@@ -21,13 +22,14 @@ from pathlib import Path
 
 from glotto_lens import prompts
 from glotto_lens.context import Citation, Context, build_context, citations, render_context
+from glotto_lens.documents import RELEASES
 from glotto_lens.llm import CachedModel, ChatModel, Completion, YandexModel
 from glotto_lens.sources import DATA_DIR, DB_PATH
 
 ANSWER_LOG = DATA_DIR / "answers.jsonl"
 BRACKETS = re.compile(r"\[([^\[\]]+)\]")
-LABEL = re.compile(r"[VT]\d+")
-SEPARATORS = re.compile(r"[\s,;]+")
+LABEL = re.compile(r"[VT]\s?\d+", re.IGNORECASE)
+NO_LANGUAGE = frozenset({"null", "none", "unknown", "n/a", "na", "-", "нет"})
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,8 @@ class Answer:
 
     @property
     def complete(self) -> bool:
-        return all(completion.complete for completion in self.completions)
+        """Whether the final answer was finished (the rewrite has its own flag)."""
+        return self.completions[-1].complete if self.completions else True
 
 
 def _first_json_object(text: str) -> dict | None:
@@ -78,19 +81,26 @@ def parse_rewrite(text: str, question: str) -> Rewrite:
     if data is None:
         return Rewrite(language=None, query=question, ok=False)
     language, query = data.get("language"), data.get("query")
-    language = language.strip() or None if isinstance(language, str) else None
+    language = language.strip() if isinstance(language, str) else None
+    if not language or language.casefold() in NO_LANGUAGE:
+        language = None
     if not isinstance(query, str) or not query.strip():
         return Rewrite(language=language, query=question, ok=False)
     return Rewrite(language=language, query=query.strip())
 
 
 def cited_labels(text: str) -> list[str]:
-    """Labels in square brackets, also in lists such as [V1, T2] or [V1; V2]."""
+    """Labels in square brackets, also in lists such as [V1, T2] or [V1; see T2].
+
+    Labels are normalized to the form of the evidence: [v 1] counts as V1.
+    """
     labels = []
     for group in BRACKETS.findall(text):
-        tokens = [token for token in SEPARATORS.split(group.strip()) if token]
-        if tokens and all(LABEL.fullmatch(token) for token in tokens):
-            labels += tokens
+        labels += [
+            label.upper().replace(" ", "")
+            for label in LABEL.findall(group)
+            if re.fullmatch(r"[VTvt]\s?\d+", label)
+        ]
     return list(dict.fromkeys(labels))
 
 
@@ -140,11 +150,13 @@ def render_answer(answer: Answer, show_context: bool = False) -> str:
         lines.append("Warning: the rewrite could not be read; the question was searched as is.")
     lines += ["", answer.text.strip(), ""]
     if not answer.complete:
-        lines.append("Warning: the model stopped at the token limit; the answer may be cut.")
-    if not answer.cited:
+        reason = answer.completions[-1].stop_reason or "unknown reason"
+        lines.append(f"Warning: the model stopped early ({reason}); the answer may be cut.")
+    if not answer.cited and citations(answer.context):
         lines.append("Warning: the answer cites no evidence.")
-    lines.append("Sources:")
-    lines += [f"[{c.label}] {c.title} {c.url}" for c in answer.cited]
+    if answer.cited:
+        lines.append("Sources:")
+        lines += [f"[{c.label}] {c.title} {c.url}" for c in answer.cited]
     if answer.invalid_labels:
         labels = ", ".join(answer.invalid_labels)
         lines.append(f"Labels not found in the evidence (marked with ?): {labels}")
@@ -163,15 +175,22 @@ def log_answer(answer: Answer, model_name: str, path: Path | None = None) -> Non
     """Append the question, the retrieval decisions and the answer to a JSONL log."""
     path = path or ANSWER_LOG
     languoid = answer.context.languoid
+    evidence = render_context(answer.context)
     record = {
         "time": time.time(),
         "model": model_name,
+        "data": RELEASES,
         "question": answer.question,
         "rewrite": {"language": answer.rewrite.language, "query": answer.rewrite.query},
         "rewrite_ok": answer.rewrite.ok,
         "glottocode": languoid.glottocode if languoid else None,
-        "evidence": sorted(citations(answer.context)),
-        "cited": [citation.label for citation in answer.cited],
+        "features": [evidence.feature_id for evidence in answer.context.evidence],
+        "documents": [hit.document_id for hit in answer.context.hits],
+        "evidence_sha256": hashlib.sha256(evidence.encode("utf-8")).hexdigest(),
+        "cited": [
+            {"label": c.label, "title": c.title, "url": c.url, "feature": c.feature_id}
+            for c in answer.cited
+        ],
         "invalid": answer.invalid_labels,
         "complete": answer.complete,
         "tokens": answer.tokens,

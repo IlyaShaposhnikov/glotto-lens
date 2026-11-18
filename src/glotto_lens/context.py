@@ -71,6 +71,8 @@ class Citation:
     label: str
     title: str
     url: str
+    feature_id: str | None = None  # for [V…]: the feature the value belongs to
+    value: str | None = None  # for [V…]: the recorded value, None when there is none
 
 
 @dataclass
@@ -171,10 +173,13 @@ def value_citations(context: Context) -> list[Citation]:
         title = f"{DISPLAY_NAMES[evidence.source]} {evidence.local_id} {evidence.name}"
         if not evidence.facts:
             label = f"V{len(found) + 1}"
-            found.append(Citation(label, f"{title}: no value recorded", evidence.url))
+            text = f"{title}: no value recorded"
+            found.append(Citation(label, text, evidence.url, evidence.feature_id))
         for fact in evidence.facts:
             url = VALUE_URLS[fact.source].format(feature=fact.feature, entry=fact.entry_id)
-            found.append(Citation(f"V{len(found) + 1}", f"{title}: {_value_text(fact)}", url))
+            text = f"{title}: {_value_text(fact)}"
+            label = f"V{len(found) + 1}"
+            found.append(Citation(label, text, url, evidence.feature_id, fact.value))
     return found
 
 

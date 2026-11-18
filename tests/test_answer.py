@@ -82,7 +82,9 @@ def test_invented_labels_are_reported_and_marked_in_the_text(conn):
     [
         ("A [V1] and [T2].", ["V1", "T2"]),
         ("A [V1, V2] and [V1; T3].", ["V1", "V2", "T3"]),
-        ("A [V1][T3] [see V2] [1] [].", ["V1", "T3"]),
+        ("A [V1][T3] [see V2] [1] [].", ["V1", "T3", "V2"]),
+        ("A [V1 (dialect)] [v 4; T2 above] [V1].", ["V1", "V4", "T2"]),
+        ("No brackets V1 T2.", []),
         ("No labels.", []),
     ],
 )
@@ -133,8 +135,23 @@ def test_command_line_runs_with_a_given_model(db_path, tmp_path, monkeypatch, ca
     output = capsys.readouterr().out
     assert "Ответ [V1]." in output and "Sources:" in output and "Values recorded" in output
     record = json.loads((tmp_path / "answers.jsonl").read_text(encoding="utf-8"))
-    assert (record["glottocode"], record["cited"], record["model"]) == (
-        "russ1263",
-        ["V1"],
-        "scripted",
-    )
+    assert (record["glottocode"], record["model"]) == ("russ1263", "scripted")
+    assert [(c["label"], c["feature"]) for c in record["cited"]] == [("V1", "wals:1A")]
+    assert record["features"] and record["data"]["wals"] == "WALS v2020.6"
+
+
+@pytest.mark.parametrize("value", ["null", "None", "unknown", "N/A", " "])
+def test_sentinel_language_values_mean_no_language(value):
+    text = json.dumps({"language": value, "query": "q"})
+    assert parse_rewrite(text, "question").language is None
+
+
+def test_cut_rewrite_does_not_mark_a_finished_answer_as_cut(conn):
+    class CutRewrite(ScriptedModel):
+        def complete(self, system, user, *, temperature=0.0, max_tokens=1500):
+            completion = super().complete(system, user)
+            first = len(self.prompts) == 1
+            return Completion(completion.text, self.name, complete=not first)
+
+    result = answer_question(conn, CutRewrite('{"query": "feature"}', "Ответ [T1]."), "q")
+    assert result.complete

@@ -5,14 +5,16 @@ experiments. Untrusted text (the question, and texts from the databases) is alwa
 between explicit tags, and closing tags inside it are neutralised by escape_tags().
 """
 
+import re
+
 TAGS = ("question", "evidence")
+TAG = re.compile(r"<(\s*/?\s*(?:" + "|".join(TAGS) + r")\b[^>]*)>", re.IGNORECASE)
 
 
 def escape_tags(text: str) -> str:
-    """Break closing tags so that a text cannot end its own block and fake another one."""
-    for tag in TAGS:
-        text = text.replace(f"</{tag}>", f"</{tag}\u200b>").replace(f"<{tag}>", f"<{tag}\u200b>")
-    return text
+    """Break our block tags inside untrusted text, in any case and spacing, so that the text
+    cannot end its own block and fake another one."""
+    return TAG.sub(lambda match: f"<{match.group(1)}\u200b>", text)
 
 
 REWRITE_SYSTEM = """You prepare questions about the grammar of languages for a search engine \

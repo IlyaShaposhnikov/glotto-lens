@@ -17,7 +17,7 @@ from glotto_lens.sources import DATA_DIR
 BASE_URL = "https://ai.api.cloud.yandex.net/v1"
 DEFAULT_MODEL = "aliceai-llm"
 CACHE_DIR = DATA_DIR / "cache" / "llm"
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 USAGE_LOG = DATA_DIR / "llm_usage.jsonl"
 TIMEOUT_SECONDS = 60
 MAX_RETRIES = 2
@@ -30,7 +30,8 @@ class Completion:
     input_tokens: int = 0
     output_tokens: int = 0
     cached: bool = False
-    complete: bool = True  # False when the model stopped at the token limit
+    complete: bool = True  # False when the model stopped early, see stop_reason
+    stop_reason: str | None = None
 
 
 class ChatModel(Protocol):
@@ -65,6 +66,8 @@ def response_text(response) -> str:
     kinds = []
     for item in getattr(response, "output", None) or []:
         kinds.append(getattr(item, "type", type(item).__name__))
+        if getattr(item, "type", None) not in (None, "message"):
+            continue
         for part in getattr(item, "content", None) or []:
             if getattr(part, "text", None):
                 return part.text
@@ -116,6 +119,7 @@ class YandexModel:
             input_tokens=getattr(usage, "input_tokens", 0) or 0,
             output_tokens=getattr(usage, "output_tokens", 0) or 0,
             complete=getattr(response, "status", None) in (None, "completed"),
+            stop_reason=getattr(getattr(response, "incomplete_details", None), "reason", None),
         )
 
 
@@ -153,7 +157,7 @@ class CachedModel:
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion:
-        path = self._path(self.name, system, user, temperature, max_tokens)
+        path = self._path(BASE_URL, self.name, system, user, temperature, max_tokens)
         if self.use_cache and (cached := self._read(path)):
             return cached
         completion = self.model.complete(
