@@ -64,6 +64,15 @@ class FeatureEvidence:
     facts: tuple[Fact, ...] = ()
 
 
+@dataclass(frozen=True)
+class Source:
+    """A labelled piece of evidence as shown to the model: [V1], [T1], ..."""
+
+    label: str
+    title: str
+    url: str
+
+
 @dataclass
 class Context:
     question: str
@@ -143,15 +152,45 @@ def build_context(conn: sqlite3.Connection, question: str, language: str | None 
     return context
 
 
-def _value_line(fact: Fact) -> str:
+def _value_text(fact: Fact) -> str:
     value = UNKNOWN_LABEL if fact.value is None else fact.value
     notes = [f"entry: {fact.entry}"]
     if fact.from_dialect:
         notes.append(f"recorded for dialect {fact.glottocode}")
     elif not fact.main:
         notes.append("secondary entry")
-    url = VALUE_URLS[fact.source].format(feature=fact.feature, entry=fact.entry_id)
-    return f"{value} ({'; '.join(notes)}) {url}"
+    return f"{value} ({'; '.join(notes)})"
+
+
+def value_sources(context: Context) -> list[Source]:
+    """The [V…] lines of the context, in the order they are rendered."""
+    if context.languoid is None:
+        return []
+    found: list[Source] = []
+    for evidence in context.evidence:
+        title = f"{DISPLAY_NAMES[evidence.source]} {evidence.local_id} {evidence.name}"
+        if not evidence.facts:
+            label = f"V{len(found) + 1}"
+            found.append(Source(label, f"{title}: no value recorded", evidence.url))
+        for fact in evidence.facts:
+            url = VALUE_URLS[fact.source].format(feature=fact.feature, entry=fact.entry_id)
+            found.append(Source(f"V{len(found) + 1}", f"{title}: {_value_text(fact)}", url))
+    return found
+
+
+def text_sources(context: Context) -> list[Source]:
+    """The [T…] passages of the context, in the order they are rendered."""
+    found = []
+    for number, hit in enumerate(context.hits, start=1):
+        author = context.authors.get(hit.document_id)
+        by = f" (by {author})" if author else ""
+        found.append(Source(f"T{number}", f"{hit.title} / {hit.section}{by}", " ".join(hit.urls)))
+    return found
+
+
+def sources(context: Context) -> dict[str, Source]:
+    """All labelled evidence of the context by label."""
+    return {source.label: source for source in value_sources(context) + text_sources(context)}
 
 
 def _language_lines(context: Context) -> list[str]:
@@ -172,15 +211,8 @@ def _language_lines(context: Context) -> list[str]:
     for key, value in context.status.items():
         lines.append(f"Glottolog {STATUS_NAMES.get(key, key)}: {value}")
     lines += ["", f"Values recorded for {languoid.name}:"]
-    number = 0
-    for evidence in context.evidence:
-        title = f"{DISPLAY_NAMES[evidence.source]} {evidence.local_id} {evidence.name}"
-        if not evidence.facts:
-            number += 1
-            lines.append(f"[V{number}] {title}: no value recorded {evidence.url}")
-        for fact in evidence.facts:
-            number += 1
-            lines.append(f"[V{number}] {title}: {_value_line(fact)}")
+    for source in value_sources(context):
+        lines.append(f"[{source.label}] {source.title} {source.url}")
     if not context.evidence:
         lines.append("No feature matched the question.")
     if context.dropped_features:
@@ -193,10 +225,8 @@ def render_context(context: Context) -> str:
     lines = [f"Question: {context.question}", "", *_language_lines(context), "Texts:"]
     if not context.hits:
         lines.append("No text matched the question.")
-    for number, hit in enumerate(context.hits, start=1):
-        author = context.authors.get(hit.document_id)
-        by = f" (by {author})" if author else ""
-        lines.append(f"[T{number}] {hit.title} / {hit.section}{by} {' '.join(hit.urls)}")
+    for source, hit in zip(text_sources(context), context.hits, strict=True):
+        lines.append(f"[{source.label}] {source.title} {source.url}")
         lines += [hit.text, ""]
     return "\n".join(lines).rstrip() + "\n"
 
