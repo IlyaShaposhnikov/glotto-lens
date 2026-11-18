@@ -1,9 +1,10 @@
 import json
 import os
+from types import SimpleNamespace
 
 import pytest
 
-from glotto_lens.llm import CachedModel, Completion, YandexModel, load_env
+from glotto_lens.llm import CachedModel, Completion, YandexModel, load_env, response_text
 
 
 class CountingModel:
@@ -62,3 +63,32 @@ def test_yandex_model_requires_credentials(tmp_path, monkeypatch):
     monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
     with pytest.raises(RuntimeError, match="YANDEX_API_KEY"):
         YandexModel()
+
+
+def test_damaged_or_outdated_cache_files_count_as_misses(tmp_path):
+    inner = CountingModel()
+    model = CachedModel(inner, tmp_path / "cache", tmp_path / "usage.jsonl")
+    model.complete("system", "hello")
+    (path,) = (tmp_path / "cache").glob("*.json")
+    path.write_text("{broken", encoding="utf-8")
+    assert model.complete("system", "hello").cached is False
+    path.write_text(json.dumps({"version": 0, "text": "old", "model": "fake"}), encoding="utf-8")
+    assert model.complete("system", "hello").cached is False
+    assert inner.calls == 3
+    assert not list((tmp_path / "cache").glob("*.part"))
+
+
+def test_no_cache_mode_calls_the_model_and_refreshes_the_cache(tmp_path):
+    inner = CountingModel()
+    CachedModel(inner, tmp_path / "cache", tmp_path / "u.jsonl").complete("s", "u")
+    fresh = CachedModel(inner, tmp_path / "cache", tmp_path / "u.jsonl", use_cache=False)
+    assert fresh.complete("s", "u").cached is False
+    assert inner.calls == 2
+
+
+def test_response_text_skips_blocks_without_text():
+    reasoning = SimpleNamespace(type="reasoning", content=None)
+    message = SimpleNamespace(type="message", content=[SimpleNamespace(text="Answer")])
+    assert response_text(SimpleNamespace(output_text="", output=[reasoning, message])) == "Answer"
+    with pytest.raises(RuntimeError, match="reasoning"):
+        response_text(SimpleNamespace(output_text=None, output=[reasoning]))

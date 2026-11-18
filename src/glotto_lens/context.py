@@ -65,7 +65,7 @@ class FeatureEvidence:
 
 
 @dataclass(frozen=True)
-class Source:
+class Citation:
     """A labelled piece of evidence as shown to the model: [V1], [T1], ..."""
 
     label: str
@@ -162,35 +162,36 @@ def _value_text(fact: Fact) -> str:
     return f"{value} ({'; '.join(notes)})"
 
 
-def value_sources(context: Context) -> list[Source]:
+def value_citations(context: Context) -> list[Citation]:
     """The [V…] lines of the context, in the order they are rendered."""
     if context.languoid is None:
         return []
-    found: list[Source] = []
+    found: list[Citation] = []
     for evidence in context.evidence:
         title = f"{DISPLAY_NAMES[evidence.source]} {evidence.local_id} {evidence.name}"
         if not evidence.facts:
             label = f"V{len(found) + 1}"
-            found.append(Source(label, f"{title}: no value recorded", evidence.url))
+            found.append(Citation(label, f"{title}: no value recorded", evidence.url))
         for fact in evidence.facts:
             url = VALUE_URLS[fact.source].format(feature=fact.feature, entry=fact.entry_id)
-            found.append(Source(f"V{len(found) + 1}", f"{title}: {_value_text(fact)}", url))
+            found.append(Citation(f"V{len(found) + 1}", f"{title}: {_value_text(fact)}", url))
     return found
 
 
-def text_sources(context: Context) -> list[Source]:
+def text_citations(context: Context) -> list[Citation]:
     """The [T…] passages of the context, in the order they are rendered."""
     found = []
     for number, hit in enumerate(context.hits, start=1):
         author = context.authors.get(hit.document_id)
         by = f" (by {author})" if author else ""
-        found.append(Source(f"T{number}", f"{hit.title} / {hit.section}{by}", " ".join(hit.urls)))
+        found.append(Citation(f"T{number}", f"{hit.title} / {hit.section}{by}", " ".join(hit.urls)))
     return found
 
 
-def sources(context: Context) -> dict[str, Source]:
+def citations(context: Context) -> dict[str, Citation]:
     """All labelled evidence of the context by label."""
-    return {source.label: source for source in value_sources(context) + text_sources(context)}
+    found = value_citations(context) + text_citations(context)
+    return {citation.label: citation for citation in found}
 
 
 def _language_lines(context: Context) -> list[str]:
@@ -211,7 +212,7 @@ def _language_lines(context: Context) -> list[str]:
     for key, value in context.status.items():
         lines.append(f"Glottolog {STATUS_NAMES.get(key, key)}: {value}")
     lines += ["", f"Values recorded for {languoid.name}:"]
-    for source in value_sources(context):
+    for source in value_citations(context):
         lines.append(f"[{source.label}] {source.title} {source.url}")
     if not context.evidence:
         lines.append("No feature matched the question.")
@@ -225,7 +226,7 @@ def render_context(context: Context) -> str:
     lines = [f"Question: {context.question}", "", *_language_lines(context), "Texts:"]
     if not context.hits:
         lines.append("No text matched the question.")
-    for source, hit in zip(text_sources(context), context.hits, strict=True):
+    for source, hit in zip(text_citations(context), context.hits, strict=True):
         lines.append(f"[{source.label}] {source.title} {source.url}")
         lines += [hit.text, ""]
     return "\n".join(lines).rstrip() + "\n"

@@ -110,6 +110,6 @@ def test_command_line_prints_the_context(db_path, monkeypatch, capsys):
 def test_sources_match_the_labels_of_the_rendered_context(conn):
     context = build_context(conn, "feature distribution", "Tula")
     rendered = render_context(context)
-    labels = context_module.sources(context)
+    labels = context_module.citations(context)
     assert labels and all(f"[{label}] " in rendered for label in labels)
     assert labels["V1"].url in rendered
