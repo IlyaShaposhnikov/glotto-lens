@@ -222,8 +222,8 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
             answer = answer_question(conn, model, args.question, args.language)
         except ModelError as error:
             sys.exit(f"The model call failed: {error}")
-    log_answer(answer, model.name)
-    print(render_answer(answer, args.show_context))
+        log_answer(answer, model.name)
+        print(render_answer(answer, args.show_context))
 
 
 if __name__ == "__main__":

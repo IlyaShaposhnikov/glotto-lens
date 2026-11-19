@@ -126,9 +126,14 @@ class YandexModel:
             return call(system, user, temperature, max_tokens)
         except Exception as error:
             status = getattr(error, "status_code", None)
-            if status is None:
-                raise
-            raise ModelError(self._explain(status, error)) from error
+            if status is not None:
+                raise ModelError(self._explain(status, error)) from error
+            if type(error).__name__ in ("APIConnectionError", "APITimeoutError"):
+                raise ModelError(
+                    f"model {self.name!r}: no response ({type(error).__name__}); check the"
+                    f" network, or raise TIMEOUT_SECONDS (now {TIMEOUT_SECONDS} s)"
+                ) from error
+            raise
 
     def _explain(self, status: int, error: Exception) -> str:
         kind = type(error).__name__
@@ -141,6 +146,13 @@ class YandexModel:
             )
         elif status == 404:
             text += ". Check the model name in the AI Studio model list"
+        elif status == 429:
+            text += ". Too many requests or the quota is spent; wait and run again"
+        elif status == 400:
+            text += (
+                ". The request was rejected; some models do not accept every temperature or"
+                " max_tokens value"
+            )
         details = getattr(error, "message", "") or ""
         return f"{text}. {details}".strip()
 
@@ -153,13 +165,22 @@ class YandexModel:
             max_output_tokens=max_tokens,
         )
         usage = getattr(response, "usage", None)
+        status = getattr(response, "status", None)
+        reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
+        try:
+            text = response_text(response)
+        except RuntimeError:
+            if status in (None, "completed"):
+                raise
+            # a reasoning model can spend the whole token budget before it writes any text
+            text = ""
         return Completion(
-            text=response_text(response),
+            text=text,
             model=self.name,
             input_tokens=getattr(usage, "input_tokens", 0) or 0,
             output_tokens=getattr(usage, "output_tokens", 0) or 0,
-            complete=getattr(response, "status", None) in (None, "completed"),
-            stop_reason=getattr(getattr(response, "incomplete_details", None), "reason", None),
+            complete=status in (None, "completed"),
+            stop_reason=reason,
         )
 
     def _chat(self, system: str, user: str, temperature: float, max_tokens: int):

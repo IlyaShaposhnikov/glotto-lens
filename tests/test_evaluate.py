@@ -535,3 +535,38 @@ def test_judge_model_is_recorded(tmp_path):
 def test_judge_model_needs_judge():
     with pytest.raises(SystemExit):
         main(["run", "--judge-model", "deepseek-v32"])
+
+
+def test_judge_is_told_when_the_value_comes_from_a_dialect(conn, monkeypatch):
+    from types import SimpleNamespace
+
+    borrowed = SimpleNamespace(
+        source="wals",
+        feature="1A",
+        value="yes",
+        known=True,
+        from_dialect=True,
+        main=False,
+        glottocode="tuln1234",
+    )
+    monkeypatch.setattr(
+        evaluate_module, "language_profile", lambda c, g: SimpleNamespace(facts=[borrowed])
+    )
+    item = Item("t", "q", "Tula", "wals:1A", "value", "tula1234")
+    text = evaluate_module.expected_text(conn, item, Gold("tula1234", "yes"))
+    assert text.endswith("yes (recorded for its dialect tuln1234)")
+
+
+def test_command_line_takes_a_judge_model(db_path, tmp_path, monkeypatch, capsys):
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    answers = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    judge_model = ScriptedModel('{"verdict": false, "reason": "strict"}')
+    judge_model.name = "other"
+    main(["run", "--judge", "--questions", str(path)], model=answers, judge_model=judge_model)
+    assert "judge no, citation check yes: 1" in capsys.readouterr().out
+    (report,) = (tmp_path / "reports").glob("eval-*.json")
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert data["judge_model"] == "other" and data["judge_max_tokens"] == 1000

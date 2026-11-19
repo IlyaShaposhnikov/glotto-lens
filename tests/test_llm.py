@@ -162,3 +162,57 @@ def test_chat_api_has_its_own_cache_entries(tmp_path):
     inner.api = "chat"
     model.complete("system", "hello")
     assert inner.calls == 2
+
+
+def test_reasoning_that_spends_the_budget_is_an_incomplete_reply(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+
+    def thinking(kwargs):
+        return SimpleNamespace(
+            output_text="",
+            output=[SimpleNamespace(type="reasoning", content=[])],
+            status="incomplete",
+            incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+            usage=SimpleNamespace(input_tokens=300, output_tokens=200),
+        )
+
+    model = YandexModel("deepseek-v32")
+    model._client = fake_client(responses=thinking)
+    completion = model.complete("s", "u", max_tokens=200)
+    assert (completion.text, completion.complete) == ("", False)
+    assert completion.stop_reason == "max_output_tokens"
+
+
+def test_network_errors_become_model_errors(monkeypatch):
+    from glotto_lens.llm import ModelError
+
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+
+    class APITimeoutError(Exception):
+        pass
+
+    def slow(kwargs):
+        raise APITimeoutError("timed out")
+
+    model = YandexModel("aliceai-llm")
+    model._client = fake_client(responses=slow)
+    with pytest.raises(ModelError, match="no response"):
+        model.complete("s", "u")
+
+
+@pytest.mark.parametrize(("status", "hint"), [(429, "wait"), (400, "temperature")])
+def test_error_hints(monkeypatch, status, hint):
+    from glotto_lens.llm import ModelError
+
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+
+    def refuse(kwargs):
+        raise FakeError(status)
+
+    model = YandexModel("aliceai-llm")
+    model._client = fake_client(responses=refuse)
+    with pytest.raises(ModelError, match=hint):
+        model.complete("s", "u")

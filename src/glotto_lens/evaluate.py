@@ -271,6 +271,9 @@ def score_retrieval(item: Item, expected: Gold, rewrite, context, call) -> Score
 
 
 FEATURE_NAME = "SELECT name FROM features WHERE id = ?"
+# Reasoning models (DeepSeek) think before they answer and count those tokens as output:
+# with 200 they ran out on the hardest items and wrote no verdict at all.
+JUDGE_MAX_TOKENS = 1000
 
 
 def expected_text(conn: sqlite3.Connection, item: Item, expected: Gold) -> str:
@@ -281,17 +284,25 @@ def expected_text(conn: sqlite3.Connection, item: Item, expected: Gold) -> str:
     """
     row = conn.execute(FEATURE_NAME, (item.feature,)).fetchone()
     feature = f"{item.feature} {row[0] if row else ''}".strip()
-    if expected.value is not None:
-        return f"Feature {feature}: {expected.value}"
     profile = language_profile(conn, expected.glottocode) if expected.glottocode else None
     facts = [
         fact
         for fact in (profile.facts if profile else [])
         if f"{fact.source}:{fact.feature}" == item.feature
     ]
+    if expected.value is not None:
+        # where the value comes from, as the evidence says it: an answer that mentions the
+        # dialect or the secondary entry is right, not hedging
+        source = next((f for f in facts if f.known and f.value == expected.value), None)
+        note = ""
+        if source is not None and source.from_dialect:
+            note = f" (recorded for its dialect {source.glottocode})"
+        elif source is not None and not source.main:
+            note = " (from a secondary entry of the dataset)"
+        return f"Feature {feature}: {expected.value}{note}"
     texts = [fact.value for fact in facts if fact.value is not None and not fact.known]
     if texts:
-        return f"Feature {feature}: no coded value; recorded only as text: {texts[0]}"
+        return f"Feature {feature}: no coded value; recorded only as text: " + "; ".join(texts)
     if facts:
         return f"Feature {feature}: the value is coded as not known (?) for this language."
     return f"Feature {feature}: no value is recorded for this language."
@@ -305,7 +316,7 @@ def judge(model: ChatModel, item: Item, expected_record: str, answer_text: str) 
             expected=prompts.escape_tags(expected_record),
             answer=prompts.escape_tags(answer_text),
         ),
-        max_tokens=200,
+        max_tokens=JUDGE_MAX_TOKENS,
     )
 
 
@@ -432,10 +443,15 @@ def evaluate_items(
 
 
 def evaluate(
-    conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item], **options
+    conn: sqlite3.Connection,
+    model: ChatModel,
+    items: Iterable[Item],
+    retrieval_only: bool = False,
+    use_judge: bool = False,
+    judge_model: ChatModel | None = None,
 ) -> list[Score]:
-    """All scores at once; options as for evaluate_items (retrieval_only, use_judge, ...)."""
-    return list(evaluate_items(conn, model, items, **options))
+    """All scores at once, see evaluate_items."""
+    return list(evaluate_items(conn, model, items, retrieval_only, use_judge, judge_model))
 
 
 def write_report(path: Path, data: dict) -> None:
@@ -503,6 +519,7 @@ def experiment_identity(
     if use_judge:
         identity["judge_sha256"] = _sha256(prompts.JUDGE_SYSTEM + prompts.JUDGE_USER)
         identity["judge_model"] = judge_model
+        identity["judge_max_tokens"] = JUDGE_MAX_TOKENS
     return identity
 
 
@@ -542,7 +559,11 @@ def retrieval_settings() -> dict:
     }
 
 
-def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
+def main(
+    argv: list[str] | None = None,
+    model: ChatModel | None = None,
+    judge_model: ChatModel | None = None,
+) -> None:
     parser = argparse.ArgumentParser(description="Evaluate the pipeline on known questions.")
     parser.add_argument("command", choices=("check", "gaps", "run"))
     parser.add_argument("feature", nargs="?", help="for gaps: a feature id, e.g. wals:81A")
@@ -611,11 +632,11 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
         model = model or CachedModel(
             YandexModel(args.model, api=args.api), use_cache=not args.no_cache
         )
-        judge_model = model
-        if args.judge_model or args.judge_api:
+        if judge_model is None and (args.judge_model or args.judge_api):
             judge_model = CachedModel(
                 YandexModel(args.judge_model, api=args.judge_api), use_cache=not args.no_cache
             )
+        judge_model = judge_model or model
         REPORTS.mkdir(parents=True, exist_ok=True)
         safe_name = re.sub(r"[^\w.-]", "_", model.name)
         stamp = time.strftime("%Y%m%d-%H%M%S")
