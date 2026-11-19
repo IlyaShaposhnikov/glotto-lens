@@ -1,0 +1,32 @@
+{"id": "h-pol-49A", "question": "Сколько падежей в польском языке?", "language": "Polish", "glottocode": "poli1260", "feature": "wals:49A", "expect": "value"}
+{"id": "h-kor-81A", "question": "Какой базовый порядок слов в корейском языке?", "language": "Korean", "glottocode": "kore1280", "feature": "wals:81A", "expect": "value"}
+{"id": "h-vie-13A", "question": "Вьетнамский — тоновый язык?", "language": "Vietnamese", "glottocode": "viet1252", "feature": "wals:13A", "expect": "value"}
+{"id": "h-zul-30A", "question": "Сколько именных классов (родов) в языке зулу?", "language": "Zulu", "glottocode": "zulu1248", "feature": "wals:30A", "expect": "value"}
+{"id": "h-heb-37A", "question": "Есть ли в современном иврите определенный артикль?", "language": "Modern Hebrew", "glottocode": "hebr1245", "feature": "wals:37A", "expect": "value"}
+{"id": "h-tam-85A", "question": "Does Tamil use prepositions or postpositions?", "language": "Tamil", "glottocode": "tami1289", "feature": "wals:85A", "expect": "value"}
+{"id": "h-gre-26A", "question": "В греческом языке словоизменение в основном префиксальное или суффиксальное?", "language": "Modern Greek", "glottocode": "mode1248", "feature": "wals:26A", "expect": "value"}
+{"id": "h-yue-13A", "question": "Is Cantonese a tone language, and how complex is its tone system?", "language": "Cantonese", "glottocode": "yuec1235", "feature": "wals:13A", "expect": "value"}
+{"id": "h-spa-87A", "question": "В испанском прилагательное обычно стоит до существительного или после?", "language": "Spanish", "glottocode": "stan1288", "feature": "wals:87A", "expect": "value"}
+{"id": "h-hau-13A", "question": "Есть ли тоны в языке хауса?", "language": "Hausa", "glottocode": "haus1257", "feature": "wals:13A", "expect": "value"}
+{"id": "h-pes-81A", "question": "Какой базовый порядок слов в персидском языке?", "language": "Persian", "glottocode": "west2369", "feature": "wals:81A", "expect": "value"}
+{"id": "h-kal-49A", "question": "Сколько падежей в гренландском языке?", "language": "Kalaallisut", "glottocode": "kala1399", "feature": "wals:49A", "expect": "value"}
+{"id": "h-nav-1A", "question": "How large is the consonant inventory of Navajo?", "language": "Navajo", "glottocode": "nava1243", "feature": "wals:1A", "expect": "value"}
+{"id": "h-swe-38A", "question": "Есть ли в шведском неопределенный артикль?", "language": "Swedish", "glottocode": "swed1254", "feature": "wals:38A", "expect": "value"}
+{"id": "h-amh-81A", "question": "Where does the verb usually go in an Amharic sentence?", "language": "Amharic", "glottocode": "amha1245", "feature": "wals:81A", "expect": "value"}
+{"id": "h-est-49A", "question": "How many cases does Estonian have?", "language": "Estonian", "glottocode": "esto1258", "feature": "wals:49A", "expect": "value"}
+{"id": "h-lit-33A", "question": "Как в литовском выражается множественное число существительных?", "language": "Lithuanian", "glottocode": "lith1251", "feature": "wals:33A", "expect": "value"}
+{"id": "h-kor-39A", "question": "Различает ли корейский инклюзивное и эксклюзивное «мы»?", "language": "Korean", "glottocode": "kore1280", "feature": "wals:39A", "expect": "value"}
+{"id": "h-mlg-GB131", "question": "Is the basic word order of Malagasy verb-initial?", "language": "Plateau Malagasy", "glottocode": "plat1254", "feature": "grambank:GB131", "expect": "value"}
+{"id": "h-ces-GB020", "question": "Есть ли в чешском языке определенный артикль?", "language": "Czech", "glottocode": "czec1258", "feature": "grambank:GB020", "expect": "value"}
+{"id": "h-cym-81A", "question": "What is the basic word order of Welsh?", "language": "Welsh", "glottocode": "wels1247", "feature": "wals:81A", "expect": "value"}
+{"id": "h-ben-GB030", "question": "Различаются ли в бенгальском местоимения третьего лица по роду?", "language": "Bengali", "glottocode": "beng1280", "feature": "grambank:GB030", "expect": "no_data"}
+{"id": "h-lez-49A", "question": "Сколько падежей в лезгинском языке?", "language": "Lezgian", "glottocode": "lezg1247", "feature": "wals:49A", "expect": "value"}
+{"id": "h-dut-87A", "question": "In Dutch, does the adjective come before or after the noun?", "language": "Dutch", "glottocode": "dutc1256", "feature": "wals:87A", "expect": "value"}
+{"id": "h-tam-13A", "question": "Is Tamil a tone language?", "language": "Tamil", "glottocode": "tami1289", "feature": "wals:13A", "expect": "no_data"}
+{"id": "h-ita-13A", "question": "Есть ли в итальянском языке тоны?", "language": "Italian", "glottocode": "ital1282", "feature": "wals:13A", "expect": "no_data"}
+{"id": "h-mar-13A", "question": "Различает ли маратхи слова по тону?", "language": "Marathi", "glottocode": "mara1378", "feature": "wals:13A", "expect": "no_data"}
+{"id": "h-bak-81A", "question": "Какой базовый порядок слов в башкирском языке?", "language": "Bashkir", "glottocode": "bash1264", "feature": "wals:81A", "expect": "no_data"}
+{"id": "h-inh-81A", "question": "Где стоит глагол в ингушском предложении?", "language": "Ingush", "glottocode": "ingu1240", "feature": "wals:81A", "expect": "no_data"}
+{"id": "h-krl-81A", "question": "What is the basic word order of Karelian?", "language": "Karelian", "glottocode": "kare1335", "feature": "wals:81A", "expect": "no_data"}
+{"id": "h-tpi-GB020", "question": "Does Tok Pisin have a definite article?", "language": "Tok Pisin", "glottocode": "tokp1240", "feature": "grambank:GB020", "expect": "no_data"}
+{"id": "h-com-GB020", "question": "Есть ли в языке команчи определенный артикль?", "language": "Comanche", "glottocode": "coma1245", "feature": "grambank:GB020", "expect": "no_data"}

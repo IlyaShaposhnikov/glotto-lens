@@ -194,6 +194,7 @@ def test_held_out_set_shares_no_language_with_the_tuning_set():
     tuning = load_items()
     held_out = load_items(evaluate_module.QUESTIONS.with_name("heldout.jsonl"))
     assert len(held_out) >= 20
+    assert {item.expect for item in held_out} == {"value", "no_data"}
     assert all(item.glottocode for item in held_out)
     assert not {item.id for item in held_out} & {item.id for item in tuning}
     assert len({item.id for item in held_out}) == len(held_out)
