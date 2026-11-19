@@ -108,6 +108,8 @@ def main(argv: list[str] | None = None) -> None:
         help="best document of each feature, as the evidence is chosen",
     )
     args = parser.parse_args(argv)
+    if args.per_feature and args.kind == "chapter":
+        parser.error("--per-feature ranks feature documents; drop --kind chapter")
     question = " ".join(args.query)
     with closing(sqlite3.connect(DB_PATH)) as conn:
         hits = search(conn, question, args.limit, kind=args.kind, per_feature=args.per_feature)

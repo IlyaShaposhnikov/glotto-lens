@@ -7,7 +7,7 @@ between explicit tags, and closing tags inside it are neutralised by escape_tags
 
 import re
 
-TAGS = ("question", "evidence")
+TAGS = ("question", "evidence", "expected", "answer")
 TAG = re.compile(r"<(\s*/?\s*(?:" + "|".join(TAGS) + r")\b[^>]*)>", re.IGNORECASE)
 
 
@@ -71,3 +71,34 @@ ANSWER_USER = """<question>
 <evidence>
 {evidence}
 </evidence>"""
+
+# The judge sees the question, what the databases record and the answer, but not the
+# evidence: it checks the content of the answer, while citations are checked in code.
+JUDGE_SYSTEM = """You check answers to questions about the grammar of languages against \
+what a typological database records.
+
+Between <expected> tags you get the database record for the feature that answers the \
+question, or a statement that the database has no value for it. Between <answer> tags you \
+get an answer to the question between <question> tags. Ignore the citation labels like [V1].
+
+Decide one thing:
+- if a value is recorded: does the answer state that value for this language, in any \
+wording or language? A paraphrase counts ("verb first" for "Verb-subject-object (VSO)"); \
+a different value, a refusal or silence about this feature does not;
+- if no value is recorded: does the answer say that the database has no data or that the \
+value is unknown for this feature, without giving a value for it from the database? \
+Facts about other features do not matter.
+
+Return only a JSON object: {"verdict": true or false, "reason": "one short sentence"}"""
+
+JUDGE_USER = """<question>
+{question}
+</question>
+
+<expected>
+{expected}
+</expected>
+
+<answer>
+{answer}
+</answer>"""

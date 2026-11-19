@@ -76,3 +76,19 @@ def test_bad_arguments_are_errors(argv):
     with pytest.raises(SystemExit) as exit_info:
         cli.main(argv)
     assert exit_info.value.code == 2
+
+
+def test_per_feature_search_refuses_chapters():
+    with pytest.raises(SystemExit):
+        cli.main(["search", "word", "--per-feature", "--kind", "chapter"])
+
+
+def test_non_negative_message_names_the_value():
+    import argparse
+
+    from glotto_lens.cliargs import non_negative
+
+    assert non_negative("0") == 0
+    for text in ("-1", "abc"):
+        with pytest.raises(argparse.ArgumentTypeError, match=repr(text)):
+            non_negative(text)

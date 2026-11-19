@@ -61,7 +61,7 @@ class Answer:
         return self.completions[-1].complete if self.completions else True
 
 
-def _first_json_object(text: str) -> dict | None:
+def first_json_object(text: str) -> dict | None:
     decoder = json.JSONDecoder()
     start = text.find("{")
     while start != -1:
@@ -77,7 +77,7 @@ def _first_json_object(text: str) -> dict | None:
 
 def parse_rewrite(text: str, question: str) -> Rewrite:
     """Read the model's JSON; fall back to searching the question as it is."""
-    data = _first_json_object(text)
+    data = first_json_object(text)
     if data is None:
         return Rewrite(language=None, query=question, ok=False)
     language, query = data.get("language"), data.get("query")

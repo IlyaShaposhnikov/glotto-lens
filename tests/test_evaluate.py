@@ -403,3 +403,77 @@ def test_code_version_marks_uncommitted_changes(monkeypatch):
 
     monkeypatch.setattr(evaluate_module.subprocess, "run", fake_run)
     assert evaluate_module.code_version() == "abc1234+dirty"
+
+
+@pytest.mark.parametrize(
+    ("text", "verdict"),
+    [
+        ('{"verdict": true, "reason": "states SVO"}', True),
+        ('Sure: {"verdict": false, "reason": "no value"}', False),
+        ('{"verdict": "yes"}', None),
+        ("no json", None),
+    ],
+)
+def test_judge_verdict_is_read_strictly(text, verdict):
+    assert evaluate_module.parse_verdict(text)[0] is verdict
+
+
+def test_judge_sees_the_recorded_value_and_scores_content(conn):
+    calls = []
+
+    class Recording(ScriptedModel):
+        def complete(self, system, user, **kwargs):
+            calls.append(user)
+            return super().complete(system, user, **kwargs)
+
+    model = Recording(
+        '{"language": "Russian", "query": "feature"}',
+        "Да, есть.",  # right content, no citation
+        '{"verdict": true, "reason": "says yes"}',
+    )
+    (result,) = evaluate_module.evaluate_items(conn, model, [RUSSIAN], use_judge=True)
+    assert result.correct is False and result.judged is True
+    assert "<expected>\nFeature wals:1A" in calls[-1] and "yes" in calls[-1]
+    assert result.input_tokens == 30  # rewrite, answer and judge
+
+
+def test_judge_cannot_approve_the_wrong_language(conn):
+    model = ScriptedModel(
+        '{"language": "Basque", "query": "feature"}', "Да [V1].", '{"verdict": true}'
+    )
+    (result,) = evaluate_module.evaluate_items(conn, model, [RUSSIAN], use_judge=True)
+    assert result.language is False and result.judged is False
+
+
+def test_failing_judge_keeps_the_answer(conn):
+    class BrokenJudge(ScriptedModel):
+        def complete(self, system, user, **kwargs):
+            if "<expected>" in user:
+                raise TimeoutError("judge")
+            return super().complete(system, user, **kwargs)
+
+    model = BrokenJudge('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    (result,) = evaluate_module.evaluate_items(conn, model, [RUSSIAN], use_judge=True)
+    assert result.error is None and result.correct is True
+    assert result.judged is None and "TimeoutError" in result.judge_reason
+
+
+def test_summary_compares_judge_and_phrase_check(db_path, tmp_path, monkeypatch, capsys):
+    path = tmp_path / "q.jsonl"
+    path.write_text(json.dumps(RUSSIAN.__dict__, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
+    monkeypatch.setattr(evaluate_module, "REPORTS", tmp_path / "reports")
+    model = ScriptedModel(
+        '{"language": "Russian", "query": "feature"}', "Да [V1].", '{"verdict": true}'
+    )
+    main(["run", "--judge", "--questions", str(path)], model=model)
+    out = capsys.readouterr().out
+    assert "judge: content correct: 1/1 (100%)" in out
+    assert "judge agrees with correct: 1/1 (100%)" in out
+    (report,) = (tmp_path / "reports").glob("eval-*.json")
+    assert json.loads(report.read_text(encoding="utf-8"))["judge_sha256"]
+
+
+def test_judge_needs_answers():
+    with pytest.raises(SystemExit):
+        main(["run", "--judge", "--retrieval-only"])
