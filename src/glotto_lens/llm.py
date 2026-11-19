@@ -19,7 +19,7 @@ DEFAULT_MODEL = "aliceai-llm"
 CACHE_DIR = DATA_DIR / "cache" / "llm"
 CACHE_VERSION = 2
 USAGE_LOG = DATA_DIR / "llm_usage.jsonl"
-TIMEOUT_SECONDS = 60
+TIMEOUT_SECONDS = int(os.environ.get("YANDEX_TIMEOUT", "60"))  # reasoning models are slower
 MAX_RETRIES = 2
 APIS = ("responses", "chat")  # Responses API or Chat Completions; models differ in support
 
@@ -92,6 +92,7 @@ class YandexModel:
         api_key: str | None = None,
         folder_id: str | None = None,
         api: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         load_env()
         self.api_key = api_key or os.environ.get("YANDEX_API_KEY")
@@ -102,6 +103,8 @@ class YandexModel:
         self.api = api or os.environ.get("YANDEX_API", "responses")
         if self.api not in APIS:
             raise ValueError(f"api must be one of {APIS}, not {self.api!r}")
+        # None: the model's default. DeepSeek and Qwen reason by default; "none" turns it off
+        self.reasoning_effort = reasoning_effort or os.environ.get("YANDEX_REASONING_EFFORT")
         self._client = None
 
     @property
@@ -156,13 +159,20 @@ class YandexModel:
         details = getattr(error, "message", "") or ""
         return f"{text}. {details}".strip()
 
+    @property
+    def settings(self) -> dict:
+        """What besides the name changes the model's replies, for reports."""
+        return {"api": self.api, "reasoning_effort": self.reasoning_effort}
+
     def _responses(self, system: str, user: str, temperature: float, max_tokens: int):
+        extra = {"reasoning": {"effort": self.reasoning_effort}} if self.reasoning_effort else {}
         response = self.client.responses.create(
             model=f"gpt://{self.folder_id}/{self.name}",
             instructions=system,
             input=user,
             temperature=temperature,
             max_output_tokens=max_tokens,
+            **extra,
         )
         usage = getattr(response, "usage", None)
         status = getattr(response, "status", None)
@@ -184,11 +194,13 @@ class YandexModel:
         )
 
     def _chat(self, system: str, user: str, temperature: float, max_tokens: int):
+        extra = {"reasoning_effort": self.reasoning_effort} if self.reasoning_effort else {}
         response = self.client.chat.completions.create(
             model=f"gpt://{self.folder_id}/{self.name}",
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=temperature,
             max_tokens=max_tokens,
+            **extra,
         )
         choice = response.choices[0]
         text = choice.message.content
@@ -218,6 +230,7 @@ class CachedModel:
     ) -> None:
         self.model = model
         self.name = model.name
+        self.settings = getattr(model, "settings", {})
         self.cache_dir = cache_dir
         self.usage_log = usage_log
         self.use_cache = use_cache  # False: always call the model, but refresh the cache
@@ -241,9 +254,11 @@ class CachedModel:
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion:
         api = getattr(self.model, "api", "responses")
-        # the API joins the key only when it is not the default, so older entries stay valid
+        effort = getattr(self.model, "reasoning_effort", None)
+        # settings join the key only when they are not the default, so older entries stay valid
         parts = (BASE_URL, self.name, system, user, temperature, max_tokens)
-        path = self._path(*parts) if api == "responses" else self._path(*parts, api)
+        extra = (*(() if api == "responses" else (api,)), *(() if effort is None else (effort,)))
+        path = self._path(*parts, *extra)
         if self.use_cache and (cached := self._read(path)):
             return cached
         completion = self.model.complete(

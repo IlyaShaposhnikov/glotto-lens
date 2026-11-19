@@ -569,4 +569,11 @@ def test_command_line_takes_a_judge_model(db_path, tmp_path, monkeypatch, capsys
     assert "judge no, citation check yes: 1" in capsys.readouterr().out
     (report,) = (tmp_path / "reports").glob("eval-*.json")
     data = json.loads(report.read_text(encoding="utf-8"))
-    assert data["judge_model"] == "other" and data["judge_max_tokens"] == 1000
+    assert data["judge_model"] == "other" and data["judge_max_tokens"] == 2000
+
+
+def test_rewrite_model_gives_every_answer_model_the_same_evidence(conn):
+    rewriter = ScriptedModel('{"language": "Russian", "query": "feature"}')
+    answers = ScriptedModel("Да [V1].")  # only the answer: the rewrite is not asked of it
+    (result,) = evaluate_module.evaluate(conn, answers, [RUSSIAN], rewrite_model=rewriter)
+    assert result.correct is True and not rewriter.texts and not answers.texts

@@ -134,10 +134,18 @@ def retrieve(
 
 
 def answer_question(
-    conn: sqlite3.Connection, model: ChatModel, question: str, language: str | None = None
+    conn: sqlite3.Connection,
+    model: ChatModel,
+    question: str,
+    language: str | None = None,
+    rewrite_model: ChatModel | None = None,
 ) -> Answer:
-    """Run the whole pipeline; an explicit language overrides the one the model finds."""
-    rewrite, context, rewrite_call = retrieve(conn, model, question, language)
+    """Run the whole pipeline; an explicit language overrides the one the model finds.
+
+    rewrite_model (default: model) does step 1. Keeping it fixed while the answer model
+    changes gives every model the same evidence, so their answers can be compared.
+    """
+    rewrite, context, rewrite_call = retrieve(conn, rewrite_model or model, question, language)
     safe_question = prompts.escape_tags(question)
     evidence = prompts.escape_tags(render_context(context))
     answer_call = model.complete(
@@ -215,8 +223,14 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument("--show-context", action="store_true", help="print the evidence too")
     parser.add_argument("--no-cache", action="store_true", help="always call the model")
     parser.add_argument("--api", choices=APIS, help="AI Studio API to call (default: responses)")
+    parser.add_argument(
+        "--reasoning-effort", help='for reasoning models, e.g. "none" to answer without reasoning'
+    )
     args = parser.parse_args(argv)
-    model = model or CachedModel(YandexModel(args.model, api=args.api), use_cache=not args.no_cache)
+    model = model or CachedModel(
+        YandexModel(args.model, api=args.api, reasoning_effort=args.reasoning_effort),
+        use_cache=not args.no_cache,
+    )
     with closing(sqlite3.connect(DB_PATH)) as conn:
         try:
             answer = answer_question(conn, model, args.question, args.language)

@@ -273,7 +273,7 @@ def score_retrieval(item: Item, expected: Gold, rewrite, context, call) -> Score
 FEATURE_NAME = "SELECT name FROM features WHERE id = ?"
 # Reasoning models (DeepSeek) think before they answer and count those tokens as output:
 # with 200 they ran out on the hardest items and wrote no verdict at all.
-JUDGE_MAX_TOKENS = 1000
+JUDGE_MAX_TOKENS = 2000  # 1000 still cut DeepSeek off once (kom-30A)
 
 
 def expected_text(conn: sqlite3.Connection, item: Item, expected: Gold) -> str:
@@ -408,21 +408,26 @@ def evaluate_items(
     retrieval_only: bool = False,
     use_judge: bool = False,
     judge_model: ChatModel | None = None,
+    rewrite_model: ChatModel | None = None,
 ) -> Iterator[Score]:
     """Score items one by one; a failing call is recorded as an error and the run goes on.
 
     With retrieval_only, only the rewrite is requested (usually from the cache), so
     retrieval settings can be compared for free. With use_judge, each answer also gets an
     LLM verdict from judge_model (default: model); a failing judge call leaves it empty.
+    rewrite_model (default: model) rewrites the questions, so that several answer models can
+    be compared on the same evidence.
     """
     for item in items:
         expected = Gold(item.glottocode, None)
         try:
             expected = gold(conn, item)
             if retrieval_only:
-                yield score_retrieval(item, expected, *retrieve(conn, model, item.question))
+                rewriter = rewrite_model or model
+                yield score_retrieval(item, expected, *retrieve(conn, rewriter, item.question))
             else:
-                result = score(item, expected, answer_question(conn, model, item.question))
+                answer = answer_question(conn, model, item.question, rewrite_model=rewrite_model)
+                result = score(item, expected, answer)
                 if use_judge:
                     record = expected_text(conn, item, expected)
                     try:
@@ -449,9 +454,12 @@ def evaluate(
     retrieval_only: bool = False,
     use_judge: bool = False,
     judge_model: ChatModel | None = None,
+    rewrite_model: ChatModel | None = None,
 ) -> list[Score]:
     """All scores at once, see evaluate_items."""
-    return list(evaluate_items(conn, model, items, retrieval_only, use_judge, judge_model))
+    return list(
+        evaluate_items(conn, model, items, retrieval_only, use_judge, judge_model, rewrite_model)
+    )
 
 
 def write_report(path: Path, data: dict) -> None:
@@ -585,11 +593,17 @@ def main(
     parser.add_argument("--judge-model", help="model for the judge (default: the answer model)")
     parser.add_argument("--api", choices=APIS, help="AI Studio API for the answer model")
     parser.add_argument("--judge-api", choices=APIS, help="AI Studio API for the judge model")
+    parser.add_argument(
+        "--rewrite-model",
+        help="model for the rewrite step (default: the answer model); fix it to compare models",
+    )
+    parser.add_argument("--reasoning-effort", help='answer model, e.g. "none" for no reasoning')
+    parser.add_argument("--judge-reasoning-effort", help="the same for the judge model")
     args = parser.parse_args(argv)
     if args.judge and args.retrieval_only:
         parser.error("--judge needs answers; drop --retrieval-only")
-    if (args.judge_model or args.judge_api) and not args.judge:
-        parser.error("--judge-model and --judge-api need --judge")
+    if (args.judge_model or args.judge_api or args.judge_reasoning_effort) and not args.judge:
+        parser.error("--judge-model, --judge-api and --judge-reasoning-effort need --judge")
     if args.feature_text_limit is not None:
         context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit
     if args.max_features is not None:
@@ -630,11 +644,24 @@ def main(
             print("Left out, inconsistent with the data:\n" + "\n".join(problems) + "\n")
         usable = [item for item, problem in checked if problem is None]
         model = model or CachedModel(
-            YandexModel(args.model, api=args.api), use_cache=not args.no_cache
+            YandexModel(args.model, api=args.api, reasoning_effort=args.reasoning_effort),
+            use_cache=not args.no_cache,
         )
-        if judge_model is None and (args.judge_model or args.judge_api):
+        rewrite_model = None
+        if args.rewrite_model:
+            rewrite_model = CachedModel(
+                YandexModel(args.rewrite_model), use_cache=not args.no_cache
+            )
+        if judge_model is None and (
+            args.judge_model or args.judge_api or args.judge_reasoning_effort
+        ):
             judge_model = CachedModel(
-                YandexModel(args.judge_model, api=args.judge_api), use_cache=not args.no_cache
+                YandexModel(
+                    args.judge_model,
+                    api=args.judge_api,
+                    reasoning_effort=args.judge_reasoning_effort,
+                ),
+                use_cache=not args.no_cache,
             )
         judge_model = judge_model or model
         REPORTS.mkdir(parents=True, exist_ok=True)
@@ -643,7 +670,9 @@ def main(
         report = REPORTS / f"eval-{safe_name}-{stamp}-{time.time_ns() % 10**6:06d}.json"
         scores: list[Score] = []
         try:
-            runs = evaluate_items(conn, model, usable, args.retrieval_only, args.judge, judge_model)
+            runs = evaluate_items(
+                conn, model, usable, args.retrieval_only, args.judge, judge_model, rewrite_model
+            )
             for number, s in enumerate(runs, start=1):
                 scores.append(s)
                 verdict = s.error or (s.correct if s.correct is not None else s.honest)
@@ -662,6 +691,13 @@ def main(
                     report,
                     {
                         "model": model.name,
+                        "model_settings": getattr(model, "settings", {}),
+                        "rewrite_model": (rewrite_model or model).name,
+                        **(
+                            {"judge_settings": getattr(judge_model, "settings", {})}
+                            if args.judge
+                            else {}
+                        ),
                         "mode": "retrieval only" if args.retrieval_only else "full",
                         **experiment_identity(args.questions, args.judge, judge_model.name),
                         "selection": {"only": args.only, "limit": args.limit},

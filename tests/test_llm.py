@@ -216,3 +216,32 @@ def test_error_hints(monkeypatch, status, hint):
     model._client = fake_client(responses=refuse)
     with pytest.raises(ModelError, match=hint):
         model.complete("s", "u")
+
+
+def test_reasoning_effort_reaches_both_apis_and_the_cache_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+    seen = []
+
+    def responses(kwargs):
+        seen.append(kwargs.get("reasoning"))
+        return SimpleNamespace(output_text="ok", status="completed", usage=None)
+
+    def chat(kwargs):
+        seen.append(kwargs.get("reasoning_effort"))
+        message = SimpleNamespace(content="ok")
+        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+
+    for api in ("responses", "chat"):
+        model = YandexModel("qwen", api=api, reasoning_effort="none")
+        model._client = fake_client(responses=responses, chat=chat)
+        model.complete("s", "u")
+    assert seen == [{"effort": "none"}, "none"]
+    assert model.settings == {"api": "chat", "reasoning_effort": "none"}
+
+    inner = CountingModel()
+    cached = CachedModel(inner, tmp_path / "cache", tmp_path / "usage.jsonl")
+    cached.complete("s", "u")
+    inner.reasoning_effort = "none"
+    cached.complete("s", "u")
+    assert inner.calls == 2
