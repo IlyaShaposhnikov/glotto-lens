@@ -1,11 +1,13 @@
 """Find languages by name or code and collect what the databases say about them."""
 
+import argparse
 import sqlite3
 import sys
 import unicodedata
 from collections import Counter
 from contextlib import closing
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 from glotto_lens.sources import DB_PATH
 
@@ -244,9 +246,13 @@ def language_profile(conn: sqlite3.Connection, glottocode: str) -> Profile | Non
     return Profile(Languoid(*row), status, facts)
 
 
-def main(queries: list[str]) -> None:
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        for query in queries:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Look up languages and show their profiles.")
+    parser.add_argument("names", nargs="+", help="names, glottocodes, ISO 639-3 or WALS codes")
+    parser.add_argument("--db", type=Path, default=DB_PATH, help="database path")
+    args = parser.parse_args(argv)
+    with closing(sqlite3.connect(args.db)) as conn:
+        for query in args.names:
             candidates = find_languages(conn, query)
             print(f"\n=== {query!r} -> key {normalize_name(query)!r}")
             for languoid in candidates:
@@ -273,4 +279,4 @@ def main(queries: list[str]) -> None:
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
-    main(sys.argv[1:])
+    main()

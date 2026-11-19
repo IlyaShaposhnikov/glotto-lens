@@ -129,6 +129,7 @@ database, and `check` verifies that every item agrees with the data.
 
 ```bash
 glotto-lens eval check                     # free: items agree with the data
+glotto-lens eval gaps grambank:GB020       # free: languages without a value, for new no-data items
 glotto-lens eval run --retrieval-only      # nearly free: rewrite and retrieval only
 glotto-lens eval run                       # full run, about 105k input tokens
 ```
@@ -149,15 +150,17 @@ of the prompts, of the question set and of the metric code, and the retrieval se
 ### Results
 
 Alice AI (`aliceai-llm`), temperature 0. Each row is one change, measured on the full set.
-The last row was measured at commit `10c926e`; reports record the commit from now on, the
-earlier rows predate that.
+The reports behind the rows are in [`eval/reports/`](eval/reports): every answer, the
+evidence features and the hashes of prompts, questions and metric. Rows 2 and 3 have the
+same answers and differ only in `metrics_sha256`. The last row was measured at commit
+`10c926e`; reports record the commit from now on, the earlier rows predate that.
 
-| Stage | Retrieved | Correct | Honest | Invalid citations |
-|---|---|---|---|---|
-| Baseline: 3 feature documents in the evidence | 33/40 | 26/33 | 4/7 | 0 |
-| Features chosen from a wider pool; "noun classes" example in the rewrite prompt | 39/41 | 31/33 | 5/8 | 0 |
-| Same answers, honesty check recognises more phrasings (metric only) | 39/41 | 31/33 | 8/8 | 0 |
-| Pool counts features, not documents; "noun classes → number of genders" | **40/41** | **31/33** | **8/8** | **0** |
+| Stage | Retrieved | Correct | Honest | Invalid citations | Report |
+|---|---|---|---|---|---|
+| Baseline: 3 feature documents in the evidence | 33/40 | 26/33 | 4/7 | 0 | [1](eval/reports/1-baseline.json) |
+| Features chosen from a wider pool; "noun classes" example in the rewrite prompt | 39/41 | 31/33 | 5/8 | 0 | [2](eval/reports/2-wider-pool.json) |
+| Same answers, honesty check recognises more phrasings (metric only) | 39/41 | 31/33 | 8/8 | 0 | [3](eval/reports/3-metric-only.json) |
+| Pool counts features, not documents; "noun classes → number of genders" | **40/41** | **31/33** | **8/8** | **0** | [4](eval/reports/4-pool-by-feature.json) |
 
 What the numbers say:
 

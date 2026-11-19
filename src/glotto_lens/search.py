@@ -1,5 +1,6 @@
 """Full-text search over the indexed documents."""
 
+import argparse
 import re
 import sqlite3
 import sys
@@ -96,9 +97,16 @@ def search(
     return hits
 
 
-def main(question: str, db_path: Path = DB_PATH) -> None:
-    with closing(sqlite3.connect(db_path)) as conn:
-        hits = search(conn, question)
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Full-text search over the documents.")
+    parser.add_argument("query", nargs="+", help="words to search for, in English")
+    parser.add_argument("--limit", type=int, default=5, help="number of results")
+    parser.add_argument("--kind", choices=("chapter", "feature"), help="only this kind")
+    parser.add_argument("--db", type=Path, default=DB_PATH, help="database path")
+    args = parser.parse_args(argv)
+    question = " ".join(args.query)
+    with closing(sqlite3.connect(args.db)) as conn:
+        hits = search(conn, question, args.limit, kind=args.kind)
     print(f"Query: {to_match_query(question)}")
     for rank, hit in enumerate(hits, start=1):
         print(f"\n{rank}. [{hit.score:.1f}] {hit.kind}: {hit.title} / {hit.section}")
@@ -108,4 +116,4 @@ def main(question: str, db_path: Path = DB_PATH) -> None:
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
-    main(" ".join(sys.argv[1:]))
+    main()

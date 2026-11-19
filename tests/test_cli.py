@@ -27,8 +27,30 @@ def test_subcommand_help_names_the_command(capsys):
     assert "usage: glotto-lens ask" in capsys.readouterr().out
 
 
-def test_lang_and_search_need_arguments(capsys):
-    cli.main(["lang"])
-    cli.main(["search"])
-    out = capsys.readouterr().out
-    assert "usage: glotto-lens lang" in out and "usage: glotto-lens search" in out
+@pytest.mark.parametrize("command", ["build", "lang", "search", "evidence", "eval"])
+def test_every_command_has_help_and_builds_nothing(command, monkeypatch, capsys):
+    from glotto_lens import database
+
+    monkeypatch.setattr(database, "build", lambda *a, **k: pytest.fail("build was called"))
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main([command, "--help"])
+    assert exit_info.value.code == 0
+    assert f"usage: glotto-lens {command}" in capsys.readouterr().out
+
+
+def test_program_name_is_restored_after_an_error(monkeypatch):
+    import sys
+
+    def broken(argv):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(cli.COMMANDS, "ask", (broken, "help"))
+    before = sys.argv[0]
+    with pytest.raises(RuntimeError):
+        cli.main(["ask", "x"])
+    assert sys.argv[0] == before
+
+
+def test_version(capsys):
+    assert cli.main(["--version"]) == 0
+    assert capsys.readouterr().out.startswith("glotto-lens ")
