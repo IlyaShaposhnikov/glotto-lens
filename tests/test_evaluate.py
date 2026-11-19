@@ -101,6 +101,11 @@ def test_refusal_without_retrieval_is_not_honesty(conn):
         "WALS does not record the number of cases for Hindi.",
         "Значение для признака «Are there definite or specific articles?» не записано.",
         "В Grambank значение по признаку «есть ли различие» отмечено как «не известно» [V1].",
+        # three phrasings the judge accepted and the check missed (model comparison runs)
+        "WALS does not provide a value for the number of cases in Hindi [V1].",
+        "Для тайского языка по вопросу о различии «мы» (GB028) значение не установлено [V1].",
+        "В WALS значения по признакам 31A (система рода по полу/не по полу) и 30A"
+        " (число родов) для этого языка не записаны [V1] [V5].",
     ],
 )
 def test_missing_data_phrases(text):
@@ -117,6 +122,8 @@ def test_missing_data_phrases(text):
         "Род не указывается.",
         "Порядок слов SVO, но падеж не указывается предлогом.",
         "Значение порядка слов — SVO. Род не указывается.",
+        "The verb does not provide a case marker.",
+        "Значение — SVO. Падеж не установлен.",
     ],
 )
 def test_claims_of_absence_are_not_missing_data(text):
@@ -458,7 +465,10 @@ def test_failing_judge_keeps_the_answer(conn):
     model = BrokenJudge('{"language": "Russian", "query": "feature"}', "Да [V1].")
     (result,) = evaluate_module.evaluate_items(conn, model, [RUSSIAN], use_judge=True)
     assert result.error is None and result.correct is True
-    assert result.judged is None and "TimeoutError" in result.judge_reason
+    assert result.judged is None and "TimeoutError" in result.judge_error
+    summary = evaluate_module.summarize([result])
+    assert summary["judge calls failed (rerun to fill)"] == "1"
+    assert summary["judge verdicts unreadable"] == "0"
 
 
 def test_summary_compares_judge_and_phrase_check(db_path, tmp_path, monkeypatch, capsys):

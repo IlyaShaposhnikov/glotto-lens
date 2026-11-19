@@ -134,7 +134,7 @@ class YandexModel:
             if type(error).__name__ in ("APIConnectionError", "APITimeoutError"):
                 raise ModelError(
                     f"model {self.name!r}: no response ({type(error).__name__}); check the"
-                    f" network, or raise TIMEOUT_SECONDS (now {TIMEOUT_SECONDS} s)"
+                    f" network, or raise YANDEX_TIMEOUT (now {TIMEOUT_SECONDS} s)"
                 ) from error
             raise
 

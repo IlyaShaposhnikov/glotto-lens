@@ -67,11 +67,13 @@ MISSING_DATA = re.compile(
     r"нет (данных|значени|записанного|записей|информаци|сведени)|данных нет"
     r"|(данные|сведения|значения?) отсутству|отсутству\w* (данные|сведения|значени)"
     r"|не (содерж|указ|зафиксир)\w* (данн|значени|информаци|сведени|запис)"
-    # a value or the data, then up to 12 words naming the feature within the same sentence,
+    # a value or the data, then up to 20 words naming the feature within the same sentence,
     # then the negation: "значение по соответствующему признаку в WALS не зафиксировано"
-    r"|(данн|значени|сведени)\w*(\s+[^\s.!?;]+){0,12}?\s+не (указ|зафиксир|приведен|записан)"
+    r"|(данн|значени|сведени)\w*(\s+[^\s.!?;]+){0,20}?"
+    r"\s+не (указ|зафиксир|приведен|записан|установлен)"
     r"|не удалось найти|не ?известн"
-    r"|no (data|value|information)|not (record|known|available)",
+    r"|no (data|value|information)|not (record|known|available)"
+    r"|not (provide|give|list)\w* (a |any )?(value|data|information)",
     re.IGNORECASE,
 )
 # Punctuation inside quotes does not end a sentence: in "значение для признака «Are there
@@ -143,6 +145,7 @@ class Score:
     answer: str = ""
     judged: bool | None = None  # the judge's verdict (with --judge), see the module docstring
     judge_reason: str = ""
+    judge_error: str | None = None  # the judge call failed (network, API): no verdict to count
     judge_input_tokens: int = 0  # kept apart from the answer's tokens: runs stay comparable
     judge_output_tokens: int = 0
 
@@ -382,7 +385,7 @@ def summarize(scores: list[Score]) -> dict[str, str]:
 
 def _judge_summary(answered: list[Score]) -> dict[str, str]:
     judged = [s for s in answered if s.judged is not None]
-    if not judged and not any(s.judge_reason for s in answered):
+    if not judged and not any(s.judge_reason or s.judge_error for s in answered):
         return {}  # the judge was not used
     values = [s for s in judged if s.expect == "value"]
     no_data_items = [s for s in judged if s.expect == "no_data"]
@@ -393,7 +396,11 @@ def _judge_summary(answered: list[Score]) -> dict[str, str]:
         "judge yes, citation check no": str(sum(s.judged and not s.correct for s in values)),
         "judge no, citation check yes": str(sum(s.correct and not s.judged for s in values)),
         "judge agrees with honest": _share([s.judged == s.honest for s in no_data_items]),
-        "judge verdicts unreadable": str(sum(s.judged is None for s in answered)),
+        # a failed call is not an unreadable verdict: rerun, the cache keeps the others
+        "judge calls failed (rerun to fill)": str(sum(s.judge_error is not None for s in answered)),
+        "judge verdicts unreadable": str(
+            sum(s.judged is None and s.judge_error is None for s in answered)
+        ),
         "judge tokens (in / out)": (
             f"{sum(s.judge_input_tokens for s in answered)}"
             f" / {sum(s.judge_output_tokens for s in answered)}"
@@ -434,7 +441,7 @@ def evaluate_items(
                         verdict = judge(judge_model or model, item, record, result.answer)
                         result = apply_judge(result, verdict)
                     except Exception as error:  # noqa: BLE001 - keep the paid answer
-                        result = replace(result, judge_reason=f"{type(error).__name__}: {error}")
+                        result = replace(result, judge_error=f"{type(error).__name__}: {error}")
                 yield result
         except Exception as error:  # noqa: BLE001 - one bad call must not lose a paid run
             yield Score(
@@ -677,7 +684,7 @@ def main(
                 scores.append(s)
                 verdict = s.error or (s.correct if s.correct is not None else s.honest)
                 if args.judge:
-                    verdict = f"{verdict} judge={s.judged}"
+                    verdict = f"{verdict} judge={'error' if s.judge_error else s.judged}"
                 missing = "" if s.retrieved else f" query={s.query!r} features={list(s.features)}"
                 print(
                     f"[{number}/{len(usable)}] {s.id}: language={s.language} "
