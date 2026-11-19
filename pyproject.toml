@@ -15,6 +15,9 @@ dependencies = [
     "openai>=1.66",
 ]
 
+[project.scripts]
+glotto-lens = "glotto_lens.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",

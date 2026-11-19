@@ -383,3 +383,23 @@ def test_metric_fingerprint_survives_missing_source(monkeypatch):
 
     monkeypatch.setattr(evaluate_module.inspect, "getsource", unavailable)
     assert len(evaluate_module.metric_fingerprint()) == 64
+
+
+def test_code_version_is_none_without_git(monkeypatch):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(evaluate_module.subprocess, "run", missing)
+    assert evaluate_module.code_version() is None
+
+
+def test_code_version_marks_uncommitted_changes(monkeypatch):
+    import subprocess
+
+    outputs = iter(["abc1234\n", " M src/glotto_lens/context.py\n"])
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout=next(outputs), stderr="")
+
+    monkeypatch.setattr(evaluate_module.subprocess, "run", fake_run)
+    assert evaluate_module.code_version() == "abc1234+dirty"

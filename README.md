@@ -1,10 +1,18 @@
+**[Russian Version / На русском](README.ru.md)**
+
 # GlottoLens
+
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![CI](https://github.com/IlyaShaposhnikov/glotto-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/IlyaShaposhnikov/glotto-lens/actions)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Data](https://img.shields.io/badge/Data-Grambank%20%C2%B7%20WALS%20%C2%B7%20Glottolog-orange)](#data-and-licenses)
+[![LLM](https://img.shields.io/badge/LLM-Alice%20AI-purple)](https://yandex.cloud/en/services/ai-studio)
 
 Ask a question about the grammar of a language, in Russian or English, and get a short
 answer in which every statement points to a record in a typological database:
 
 ```text
-$ python -m glotto_lens.answer "Правда ли, что в ирландском глагол стоит в начале предложения?"
+$ glotto-lens ask "Правда ли, что в ирландском глагол стоит в начале предложения?"
 Search: 'verb-initial order of subject object and verb VSO', language: 'Irish'
 
 Да, в ирландском языке глагол стоит в начале предложения. Согласно данным WALS, для него
@@ -13,13 +21,15 @@ Search: 'verb-initial order of subject object and verb VSO', language: 'Irish'
 глагольно-начальный порядок [V5].
 
 Sources:
-[V3] WALS 81A Order of Subject, Object and Verb: Verb-subject-object (VSO) ...
+[V3] WALS 81A Order of Subject, Object and Verb: Verb-subject-object (VSO) (entry: Irish)
      https://wals.info/datapoint/81A/wals_code_iri
-[V5] Grambank GB131 ...: present ... https://grambank.clld.org/valuesets/GB131-iris1253
-[T9] ... https://wals.info/chapter/81
+[T9] Order of Subject, Object and Verb / 1. Six types with dominant order (by Matthew S. Dryer)
+     https://wals.info/chapter/81
+[V5] Grambank GB131 Is a pragmatically unmarked constituent order verb-initial for transitive
+     clauses?: present (entry: Irish) https://grambank.clld.org/valuesets/GB131-iris1253
 ```
 
-(The answer is from an evaluation run; the source lines are abridged.)
+(Source lines are wrapped to fit the page.)
 
 GlottoLens is retrieval-augmented generation over three open linguistic databases:
 
@@ -80,14 +90,15 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
-python -m glotto_lens.database     # download the three datasets and build data/glottolens.sqlite
+glotto-lens build                  # download the three datasets and build data/glottolens.sqlite
 ```
 
 Searching and looking up languages need no API key:
 
 ```bash
-python -m glotto_lens.languages "русский" "Basque" "nucl1643"
-python -m glotto_lens.context "definite articles" -l Basque
+glotto-lens lang русский Basque nucl1643       # language lookup: names, glottocodes, codes
+glotto-lens search definite articles           # full-text search over the documents
+glotto-lens evidence "definite articles" -l Basque   # the evidence the model would get
 ```
 
 Answering needs a Yandex Cloud folder with access to AI Studio. Put the key in `.env`
@@ -100,11 +111,13 @@ YANDEX_FOLDER_ID=...
 ```
 
 ```bash
-python -m glotto_lens.answer "Сколько падежей в финском языке?"
-python -m glotto_lens.answer "Is Yoruba a tone language?" --show-context
+glotto-lens ask "Сколько падежей в финском языке?"
+glotto-lens ask "Is Yoruba a tone language?" --show-context
 ```
 
-Data, the cache and reports live in `data/` (or in `GLOTTO_LENS_DATA`).
+`glotto-lens COMMAND --help` lists the options of each command; `python -m glotto_lens.answer`
+and the other modules work the same way. Data, the cache and reports live in `data/` (or in
+`GLOTTO_LENS_DATA`).
 
 ## Evaluation
 
@@ -115,13 +128,13 @@ resolve to. The expected values are never written by hand: they are read from th
 database, and `check` verifies that every item agrees with the data.
 
 ```bash
-python -m glotto_lens.evaluate check                   # free: items agree with the data
-python -m glotto_lens.evaluate run --retrieval-only    # nearly free: rewrite and retrieval only
-python -m glotto_lens.evaluate run                     # full run, about 105k input tokens
+glotto-lens eval check                     # free: items agree with the data
+glotto-lens eval run --retrieval-only      # nearly free: rewrite and retrieval only
+glotto-lens eval run                       # full run, about 105k input tokens
 ```
 
-Every report records what it depends on: data releases, hashes of the prompts, of the
-question set and of the metric code, and the retrieval settings.
+Every report records what it depends on: the git commit of the code, data releases, hashes
+of the prompts, of the question set and of the metric code, and the retrieval settings.
 
 ### Metrics
 
@@ -136,6 +149,8 @@ question set and of the metric code, and the retrieval settings.
 ### Results
 
 Alice AI (`aliceai-llm`), temperature 0. Each row is one change, measured on the full set.
+The last row was measured at commit `10c926e`; reports record the commit from now on, the
+earlier rows predate that.
 
 | Stage | Retrieved | Correct | Honest | Invalid citations |
 |---|---|---|---|---|
@@ -196,6 +211,7 @@ src/glotto_lens/
   llm.py         Yandex AI Studio client, disk cache, token log
   answer.py      the pipeline: rewrite, retrieve, answer, citation check, answer log
   evaluate.py    question set checks, metrics, reports
+  cli.py         the glotto-lens command
 eval/questions.jsonl   the question set
 tests/                 pytest suite on small synthetic archives, no network or API key
 ```
@@ -218,3 +234,13 @@ licenses of those releases (Creative Commons Attribution 4.0 for all three):
 If you use answers produced with GlottoLens, cite the databases as their maintainers ask:
 each release lists its recommended citation in its repository and on its website. Every
 answer links to the exact WALS datapoint or Grambank valueset it relies on.
+
+## Author
+
+Ilya Shaposhnikov | [E-mail](mailto:ilia.a.shaposhnikov@gmail.com) | [LinkedIn](https://linkedin.com/in/iliashaposhnikov)
+
+Code under the [MIT license](LICENSE). Data: [Grambank](https://grambank.clld.org),
+[WALS Online](https://wals.info) and [Glottolog](https://glottolog.org) under CC BY 4.0,
+downloaded from their releases and not redistributed here.
+
+**[Russian Version / На русском](README.ru.md)**

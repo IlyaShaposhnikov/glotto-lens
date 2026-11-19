@@ -378,11 +378,17 @@ def report(db_path: Path = DB_PATH) -> dict[str, list[tuple]]:
         return {title: conn.execute(query).fetchall() for title, query in REPORT.items()}
 
 
-if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")
+def main(argv: list[str] | None = None) -> None:
+    """Download the pinned releases if needed, build the database and print the report."""
+    del argv  # no options
     path = build()
     print(f"Built {path} ({path.stat().st_size / 1024 / 1024:.0f} MB)")
     for title, rows in report(path).items():
         print(f"\n{title}")
         for row in rows:
             print("  " + " | ".join(str(cell) for cell in row))
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    main()

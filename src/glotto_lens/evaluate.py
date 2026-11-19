@@ -29,6 +29,7 @@ import inspect
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 import time
 from collections.abc import Iterable, Iterator
@@ -338,12 +339,42 @@ def metric_fingerprint() -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
+def code_version() -> str | None:
+    """The git commit of the code, with "+dirty" for uncommitted changes; None outside git.
+
+    Prompts, metric and retrieval settings are hashed separately, but the policy around
+    them (feature selection, query building, document chunking) is only in the code.
+    """
+    root = Path(__file__).resolve().parents[2]
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+        changes = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return f"{commit}+dirty" if changes else commit
+
+
 def experiment_identity(items_path: Path) -> dict:
     """What a report depends on: data releases, prompts and the question set."""
     prompt_text = "".join(
         (prompts.REWRITE_SYSTEM, prompts.REWRITE_USER, prompts.ANSWER_SYSTEM, prompts.ANSWER_USER)
     )
     return {
+        "code": code_version(),
         "data": RELEASES,
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
