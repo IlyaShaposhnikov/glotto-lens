@@ -381,12 +381,11 @@ def report(db_path: Path = DB_PATH) -> dict[str, list[tuple]]:
 
 def main(argv: list[str] | None = None) -> None:
     """Download the pinned releases if needed, build the database and print the report."""
-    parser = argparse.ArgumentParser(
-        description="Download the pinned releases (once) and build the SQLite database."
-    )
-    parser.add_argument("--db", type=Path, default=DB_PATH, help="database path")
-    args = parser.parse_args(argv)
-    path = build(args.db)
+    argparse.ArgumentParser(
+        description="Download the pinned releases (once) and build the SQLite database. "
+        "All commands use data/ or the directory in GLOTTO_LENS_DATA."
+    ).parse_args(argv)
+    path = build()
     print(f"Built {path} ({path.stat().st_size / 1024 / 1024:.0f} MB)")
     for title, rows in report(path).items():
         print(f"\n{title}")

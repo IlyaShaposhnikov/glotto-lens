@@ -6,8 +6,8 @@ import sqlite3
 import sys
 from contextlib import closing
 from dataclasses import dataclass
-from pathlib import Path
 
+from glotto_lens.cliargs import non_negative
 from glotto_lens.sources import DB_PATH
 
 STOPWORDS = frozenset(
@@ -100,16 +100,21 @@ def search(
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Full-text search over the documents.")
     parser.add_argument("query", nargs="+", help="words to search for, in English")
-    parser.add_argument("--limit", type=int, default=5, help="number of results")
+    parser.add_argument("--limit", type=non_negative, default=5, help="number of results")
     parser.add_argument("--kind", choices=("chapter", "feature"), help="only this kind")
-    parser.add_argument("--db", type=Path, default=DB_PATH, help="database path")
+    parser.add_argument(
+        "--per-feature",
+        action="store_true",
+        help="best document of each feature, as the evidence is chosen",
+    )
     args = parser.parse_args(argv)
     question = " ".join(args.query)
-    with closing(sqlite3.connect(args.db)) as conn:
-        hits = search(conn, question, args.limit, kind=args.kind)
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        hits = search(conn, question, args.limit, kind=args.kind, per_feature=args.per_feature)
     print(f"Query: {to_match_query(question)}")
     for rank, hit in enumerate(hits, start=1):
-        print(f"\n{rank}. [{hit.score:.1f}] {hit.kind}: {hit.title} / {hit.section}")
+        feature = f" ({hit.feature_id})" if hit.feature_id else ""
+        print(f"\n{rank}. [{hit.score:.1f}] {hit.kind}{feature}: {hit.title} / {hit.section}")
         print("   " + ", ".join(hit.urls))
         print("   " + hit.snippet.replace("\n", " "))
 

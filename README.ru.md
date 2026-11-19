@@ -97,7 +97,7 @@ glotto-lens build                  # скачать три датасета и �
 
 ```bash
 glotto-lens lang русский Basque nucl1643       # поиск языка по названию, глоттокоду, коду
-glotto-lens search definite articles           # полнотекстовый поиск по документам
+glotto-lens search definite articles --per-feature  # признаки в порядке отбора доказательств
 glotto-lens evidence "definite articles" -l Basque   # доказательства, которые получит модель
 ```
 
@@ -218,6 +218,7 @@ src/glotto_lens/
   evaluate.py    проверка набора вопросов, метрики, отчеты
   cli.py         команда glotto-lens
 eval/questions.jsonl   набор вопросов
+eval/reports/          отчеты оценки, на которых построена таблица результатов
 tests/                 тесты pytest на небольших синтетических архивах, без сети и API-ключа
 ```
 

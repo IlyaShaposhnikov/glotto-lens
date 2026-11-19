@@ -40,6 +40,7 @@ from pathlib import Path
 from glotto_lens import context as context_settings
 from glotto_lens import prompts
 from glotto_lens.answer import Answer, answer_question, retrieve
+from glotto_lens.cliargs import non_negative
 from glotto_lens.documents import RELEASES
 from glotto_lens.languages import KNOWN_FACTS, find_languages, language_profile
 from glotto_lens.llm import CachedModel, ChatModel, YandexModel
@@ -415,20 +416,12 @@ def retrieval_settings() -> dict:
     }
 
 
-def _non_negative(text: str) -> int:
-    value = int(text)
-    if value < 0:
-        # SQLite reads LIMIT -1 as "no limit", and a negative slice drops the last items.
-        raise argparse.ArgumentTypeError("must not be negative")
-    return value
-
-
 def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser = argparse.ArgumentParser(description="Evaluate the pipeline on known questions.")
     parser.add_argument("command", choices=("check", "gaps", "run"))
     parser.add_argument("feature", nargs="?", help="for gaps: a feature id, e.g. wals:81A")
     parser.add_argument("--questions", type=Path, default=QUESTIONS)
-    parser.add_argument("--limit", type=_non_negative, help="use only the first N items")
+    parser.add_argument("--limit", type=non_negative, help="use only the first N items")
     parser.add_argument("--only", nargs="+", metavar="ID", help="use only these item ids")
     parser.add_argument("-m", "--model", help="model name, e.g. aliceai-llm")
     parser.add_argument("--no-cache", action="store_true", help="always call the model")
@@ -436,9 +429,9 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
         "--retrieval-only", action="store_true", help="score language and retrieval only"
     )
     parser.add_argument(
-        "--feature-text-limit", type=_non_negative, help="override FEATURE_TEXT_LIMIT"
+        "--feature-text-limit", type=non_negative, help="override FEATURE_TEXT_LIMIT"
     )
-    parser.add_argument("--max-features", type=_non_negative, help="override MAX_FEATURES")
+    parser.add_argument("--max-features", type=non_negative, help="override MAX_FEATURES")
     args = parser.parse_args(argv)
     if args.feature_text_limit is not None:
         context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit

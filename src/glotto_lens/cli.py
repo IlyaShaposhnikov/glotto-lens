@@ -12,18 +12,19 @@ so "glotto-lens ask --help" shows its options, and "glotto-lens --version" the v
 """
 
 import sys
-from collections.abc import Callable
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 
-from glotto_lens import answer, context, database, evaluate, languages, search
-
-COMMANDS: dict[str, tuple[Callable[[list[str]], None], str]] = {
-    "build": (database.main, "download the data and build the database"),
-    "ask": (answer.main, "answer a question with cited evidence (needs an API key)"),
-    "evidence": (context.main, "show the evidence for a query, no model call"),
-    "lang": (languages.main, "look up languages by name or code"),
-    "search": (search.main, "full-text search over the documents"),
-    "eval": (evaluate.main, "evaluate on the question set: check, gaps, run"),
+# Command -> (module of glotto_lens whose main() runs it, help). Modules are imported only
+# when their command runs: "lang" does not load the LLM client, and tests can patch
+# module.main before calling cli.main.
+COMMANDS: dict[str, tuple[str, str]] = {
+    "build": ("database", "download the data and build the database"),
+    "ask": ("answer", "answer a question with cited evidence (needs an API key)"),
+    "evidence": ("context", "show the evidence for a query, no model call"),
+    "lang": ("languages", "look up languages by name or code"),
+    "search": ("search", "full-text search over the documents"),
+    "eval": ("evaluate", "evaluate on the question set: check, gaps, run"),
 }
 
 
@@ -51,7 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     if command not in COMMANDS:
         print(f"glotto-lens: unknown command {command!r}\n\n{usage()}", file=sys.stderr)
         return 2
-    run, _ = COMMANDS[command]
+    module, _ = COMMANDS[command]
+    run = import_module(f"glotto_lens.{module}").main
     program = sys.argv[0]
     sys.argv[0] = f"glotto-lens {command}"  # argparse shows it in usage lines
     try:

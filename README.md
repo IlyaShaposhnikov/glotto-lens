@@ -97,7 +97,7 @@ Searching and looking up languages need no API key:
 
 ```bash
 glotto-lens lang русский Basque nucl1643       # language lookup: names, glottocodes, codes
-glotto-lens search definite articles           # full-text search over the documents
+glotto-lens search definite articles --per-feature  # features ranked as for the evidence
 glotto-lens evidence "definite articles" -l Basque   # the evidence the model would get
 ```
 
@@ -216,6 +216,7 @@ src/glotto_lens/
   evaluate.py    question set checks, metrics, reports
   cli.py         the glotto-lens command
 eval/questions.jsonl   the question set
+eval/reports/          the evaluation reports behind the results table
 tests/                 pytest suite on small synthetic archives, no network or API key
 ```
 

@@ -7,7 +7,6 @@ import unicodedata
 from collections import Counter
 from contextlib import closing
 from dataclasses import dataclass, field, replace
-from pathlib import Path
 
 from glotto_lens.sources import DB_PATH
 
@@ -46,7 +45,8 @@ LANGUOID_FACTS = """
     dialects AS (
         SELECT d.parent_language_id AS glottocode, v.source, COUNT(*) AS n
         FROM feature_values v JOIN languoids d ON d.glottocode = v.glottocode
-        WHERE d.level = 'dialect' AND d.parent_language_id IS NOT NULL
+        JOIN languoids p ON p.glottocode = d.parent_language_id  -- a known parent only
+        WHERE d.level = 'dialect'
           AND v.source IN ('wals', 'grambank') AND v.code_id IS NOT NULL
         GROUP BY d.parent_language_id, v.source),
     pairs AS (
@@ -249,9 +249,8 @@ def language_profile(conn: sqlite3.Connection, glottocode: str) -> Profile | Non
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Look up languages and show their profiles.")
     parser.add_argument("names", nargs="+", help="names, glottocodes, ISO 639-3 or WALS codes")
-    parser.add_argument("--db", type=Path, default=DB_PATH, help="database path")
     args = parser.parse_args(argv)
-    with closing(sqlite3.connect(args.db)) as conn:
+    with closing(sqlite3.connect(DB_PATH)) as conn:
         for query in args.names:
             candidates = find_languages(conn, query)
             print(f"\n=== {query!r} -> key {normalize_name(query)!r}")
