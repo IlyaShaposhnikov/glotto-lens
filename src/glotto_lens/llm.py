@@ -21,6 +21,9 @@ CACHE_VERSION = 2
 USAGE_LOG = DATA_DIR / "llm_usage.jsonl"
 TIMEOUT_SECONDS = int(os.environ.get("YANDEX_TIMEOUT", "60"))  # reasoning models are slower
 MAX_RETRIES = 2
+# AI Studio sometimes answers 403 for a model the key can use, then serves the same request a
+# little later (seen in long eval runs); the SDK does not retry 403, so these waits do
+FORBIDDEN_RETRY_SECONDS = (5, 15, 30)
 APIS = ("responses", "chat")  # Responses API or Chat Completions; models differ in support
 
 
@@ -125,18 +128,30 @@ class YandexModel:
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion:
         call = self._chat if self.api == "chat" else self._responses
-        try:
-            return call(system, user, temperature, max_tokens)
-        except Exception as error:
-            status = getattr(error, "status_code", None)
-            if status is not None:
-                raise ModelError(self._explain(status, error)) from error
-            if type(error).__name__ in ("APIConnectionError", "APITimeoutError"):
-                raise ModelError(
-                    f"model {self.name!r}: no response ({type(error).__name__}); check the"
-                    f" network, or raise YANDEX_TIMEOUT (now {TIMEOUT_SECONDS} s)"
-                ) from error
-            raise
+        for wait in (*FORBIDDEN_RETRY_SECONDS, None):
+            try:
+                return call(system, user, temperature, max_tokens)
+            except Exception as error:
+                if getattr(error, "status_code", None) == 403 and wait is not None:
+                    time.sleep(wait)
+                    continue
+                explained = self._model_error(error)
+                if explained is None:
+                    raise
+                raise explained from error
+        raise AssertionError("unreachable: the last attempt returns or raises")
+
+    def _model_error(self, error: Exception) -> ModelError | None:
+        """A ModelError that says what to try, or None for errors this class does not know."""
+        status = getattr(error, "status_code", None)
+        if status is not None:
+            return ModelError(self._explain(status, error))
+        if type(error).__name__ in ("APIConnectionError", "APITimeoutError"):
+            return ModelError(
+                f"model {self.name!r}: no response ({type(error).__name__}); check the"
+                f" network, or raise YANDEX_TIMEOUT (now {TIMEOUT_SECONDS} s)"
+            )
+        return None
 
     def _explain(self, status: int, error: Exception) -> str:
         kind = type(error).__name__
@@ -147,6 +162,8 @@ class YandexModel:
                 ". The key or the folder may have no access to this model, or the model may"
                 f" not be served through this API; try --api {other}"
             )
+            if status == 403:
+                text += f" (refused again after waits of {FORBIDDEN_RETRY_SECONDS} s)"
         elif status == 404:
             text += ". Check the model name in the AI Studio model list"
         elif status == 429:

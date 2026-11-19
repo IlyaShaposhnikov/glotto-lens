@@ -132,8 +132,10 @@ def test_chat_completions_api(monkeypatch):
 
 
 def test_api_errors_name_the_model_and_the_way_out(monkeypatch):
+    from glotto_lens import llm
     from glotto_lens.llm import ModelError
 
+    monkeypatch.setattr(llm, "FORBIDDEN_RETRY_SECONDS", ())
     monkeypatch.setenv("YANDEX_API_KEY", "k")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
 
@@ -245,3 +247,51 @@ def test_reasoning_effort_reaches_both_apis_and_the_cache_key(monkeypatch, tmp_p
     inner.reasoning_effort = "none"
     cached.complete("s", "u")
     assert inner.calls == 2
+
+
+def test_a_passing_403_is_waited_out(monkeypatch):
+    from glotto_lens import llm
+
+    waits = []
+    monkeypatch.setattr(llm, "FORBIDDEN_RETRY_SECONDS", (1, 2, 3))
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+    replies = iter([FakeError(403), FakeError(403)])
+
+    def flaky(kwargs):
+        error = next(replies, None)
+        if error:
+            raise error
+        content = [SimpleNamespace(type="output_text", text="ответ")]
+        return SimpleNamespace(
+            output=[SimpleNamespace(type="message", content=content)],
+            output_text="ответ",
+            status="completed",
+            usage=SimpleNamespace(input_tokens=5, output_tokens=2),
+        )
+
+    model = YandexModel("aliceai-llm")
+    model._client = fake_client(responses=flaky)
+    assert model.complete("s", "u").text == "ответ"
+    assert waits == [1, 2]
+
+
+def test_a_lasting_403_fails_after_the_waits(monkeypatch):
+    from glotto_lens import llm
+    from glotto_lens.llm import ModelError
+
+    waits = []
+    monkeypatch.setattr(llm, "FORBIDDEN_RETRY_SECONDS", (1, 2))
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+
+    def refuse(kwargs):
+        raise FakeError(403)
+
+    model = YandexModel("aliceai-llm")
+    model._client = fake_client(responses=refuse)
+    with pytest.raises(ModelError, match="refused again"):
+        model.complete("s", "u")
+    assert waits == [1, 2]
