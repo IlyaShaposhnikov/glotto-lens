@@ -198,9 +198,12 @@ answer differs. Temperature 0, reasoning off for DeepSeek and Qwen
 | YandexGPT 5.1 Pro (`yandexgpt-5.1`) | **32/33** | 7/8 | 0 | 32/33 | 7/8 | 2.3k | [yandexgpt](eval/reports/cmp-yandexgpt-5.1.json) |
 | DeepSeek V4.1 Flash (`deepseek-v4.1-flash`) | **32/33** | **8/8** | 0 | 32/33 | 8/8 | 7.9k | [deepseek](eval/reports/cmp-deepseek-v4.1-flash.json) |
 | Qwen3.6-35B (`qwen3.6-35b-a3b`) | 31/33 | 8/8 | 1 | 32/33 | 7/7² | 6.4k | [qwen](eval/reports/cmp-qwen3.6-35b-a3b.json) |
+| DeepSeek V4.1 Flash, reasoning on³ | **32/33** | **8/8** | 0 | 32/33 | 8/8 | 19.7k | [reasoning](eval/reports/cmp-deepseek-v4.1-flash-reasoning.json) |
 
 ¹ Alice's answers came from the cache, so the report has no token count; the figure is from
 the last paid run. ² The judge's reply on `kom-30A` was cut off at 2000 tokens.
+³ The model's default reasoning, commit `892fe3a`; two answers (`eng-49A`, `yor-13A`) were
+cut off at the 1000-token limit after they had cited the value.
 
 What the numbers say:
 
@@ -213,6 +216,11 @@ What the numbers say:
   says Komi has no gender, where WALS has no value; it is the only dishonest answer.
 - **DeepSeek and Qwen write three times as much** for the same scores, even with reasoning
   off.
+- **Reasoning does not help here.** With its default reasoning DeepSeek gets exactly the same
+  verdict on every one of the 41 questions, from the checks and from the judge, for 2.5 times
+  the output tokens. These questions ask for a value that is already in the evidence, so the
+  work is finding and citing the right line, not inferring anything; questions that need
+  several facts combined could behave differently.
 - **The judge found three gaps in the honesty check**: "WALS does not provide a value",
   "значение не установлено", and a negation 16 words after "значения". The check now
   accepts them; no other answer in any report changed its score.
@@ -246,8 +254,8 @@ What the numbers say:
 - **Coverage.** The databases have gaps (Grambank has no data for Standard German, for
   example), and 17 WALS languages have no glottocode, so their values cannot be looked up
   by name through Glottolog.
-- **One run per model.** The comparison has no repeats, and reasoning (chain of thought)
-  has not been tried yet: DeepSeek and Qwen answered with it turned off.
+- **One run per model.** The comparison has no repeats, and reasoning was tried on one model
+  only (DeepSeek).
 
 ## Project layout
 

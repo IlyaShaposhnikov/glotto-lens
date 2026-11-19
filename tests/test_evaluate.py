@@ -189,6 +189,17 @@ def test_repository_question_set_is_well_formed():
     assert all(item.glottocode for item in items)
 
 
+def test_held_out_set_shares_no_language_with_the_tuning_set():
+    # the held-out set measures generalisation only while nothing was tuned on its languages
+    tuning = load_items()
+    held_out = load_items(evaluate_module.QUESTIONS.with_name("heldout.jsonl"))
+    assert len(held_out) >= 20
+    assert all(item.glottocode for item in held_out)
+    assert not {item.id for item in held_out} & {item.id for item in tuning}
+    assert len({item.id for item in held_out}) == len(held_out)
+    assert not {item.glottocode for item in held_out} & {item.glottocode for item in tuning}
+
+
 def test_only_rejects_unknown_ids(db_path, monkeypatch):
     monkeypatch.setattr(evaluate_module, "DB_PATH", db_path)
     with pytest.raises(SystemExit):
