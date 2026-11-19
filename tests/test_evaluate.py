@@ -7,6 +7,7 @@ import pytest
 from glotto_lens import evaluate as evaluate_module
 from glotto_lens.documents import RELEASES
 from glotto_lens.evaluate import (
+    Gold,
     Item,
     check_items,
     evaluate,
@@ -411,6 +412,8 @@ def test_code_version_marks_uncommitted_changes(monkeypatch):
         ('{"verdict": true, "reason": "states SVO"}', True),
         ('Sure: {"verdict": false, "reason": "no value"}', False),
         ('{"verdict": "yes"}', None),
+        ('{"verdict": "True"}', True),
+        ('{"verdict": 1}', None),
         ("no json", None),
     ],
 )
@@ -434,7 +437,7 @@ def test_judge_sees_the_recorded_value_and_scores_content(conn):
     (result,) = evaluate_module.evaluate_items(conn, model, [RUSSIAN], use_judge=True)
     assert result.correct is False and result.judged is True
     assert "<expected>\nFeature wals:1A" in calls[-1] and "yes" in calls[-1]
-    assert result.input_tokens == 30  # rewrite, answer and judge
+    assert (result.input_tokens, result.judge_input_tokens) == (20, 10)  # kept apart
 
 
 def test_judge_cannot_approve_the_wrong_language(conn):
@@ -469,7 +472,7 @@ def test_summary_compares_judge_and_phrase_check(db_path, tmp_path, monkeypatch,
     main(["run", "--judge", "--questions", str(path)], model=model)
     out = capsys.readouterr().out
     assert "judge: content correct: 1/1 (100%)" in out
-    assert "judge agrees with correct: 1/1 (100%)" in out
+    assert "judge no, citation check yes: 0" in out and "judge tokens (in / out): 10 / 5" in out
     (report,) = (tmp_path / "reports").glob("eval-*.json")
     assert json.loads(report.read_text(encoding="utf-8"))["judge_sha256"]
 
@@ -477,3 +480,58 @@ def test_summary_compares_judge_and_phrase_check(db_path, tmp_path, monkeypatch,
 def test_judge_needs_answers():
     with pytest.raises(SystemExit):
         main(["run", "--judge", "--retrieval-only"])
+
+
+def test_judge_can_be_another_model(conn):
+    answers = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    judge_model = ScriptedModel('{"verdict": true, "reason": "ok"}')
+    (result,) = evaluate_module.evaluate(
+        conn, answers, [RUSSIAN], use_judge=True, judge_model=judge_model
+    )
+    assert result.judged is True and not answers.texts and not judge_model.texts
+
+
+def test_cut_off_judge_reply_is_reported():
+    s = evaluate_module.Score("a", "q", "value", "russ1263", "x", language=True)
+    call = Completion('{"verdict": tr', "j", complete=False, stop_reason="max_tokens")
+    judged = evaluate_module.apply_judge(s, call)
+    assert judged.judged is None and "cut off (max_tokens)" in judged.judge_reason
+
+
+def test_judge_cannot_approve_a_gap_admitted_for_another_language():
+    s = evaluate_module.Score("a", "q", "no_data", "stan1295", None, language=False)
+    judged = evaluate_module.apply_judge(s, Completion('{"verdict": true}', "j"))
+    assert judged.judged is False
+
+
+def test_judge_is_told_which_kind_of_missing_value(conn, monkeypatch):
+    from types import SimpleNamespace
+
+    def fact(value, known):
+        return SimpleNamespace(source="wals", feature="1A", value=value, known=known)
+
+    item = Item("n", "q", "Russian", "wals:1A", "no_data", "russ1263")
+    missing = Gold("russ1263", None)
+    for facts, expected in [
+        ([], "no value is recorded"),
+        ([fact(None, False)], "coded as not known (?)"),
+        ([fact("free text", False)], "recorded only as text: free text"),
+    ]:
+        profile = SimpleNamespace(facts=facts)
+        monkeypatch.setattr(evaluate_module, "language_profile", lambda c, g, p=profile: p)
+        assert expected in evaluate_module.expected_text(conn, item, missing)
+    monkeypatch.undo()
+    assert evaluate_module.expected_text(conn, RUSSIAN, gold(conn, RUSSIAN)).endswith(": yes")
+
+
+def test_judge_model_is_recorded(tmp_path):
+    path = tmp_path / "q.jsonl"
+    path.write_text("{}", encoding="utf-8")
+    identity = evaluate_module.experiment_identity(path, True, "deepseek-v32")
+    assert identity["judge_model"] == "deepseek-v32"
+    assert "judge_model" not in evaluate_module.experiment_identity(path)
+
+
+def test_judge_model_needs_judge():
+    with pytest.raises(SystemExit):
+        main(["run", "--judge-model", "deepseek-v32"])

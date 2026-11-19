@@ -21,6 +21,11 @@ CACHE_VERSION = 2
 USAGE_LOG = DATA_DIR / "llm_usage.jsonl"
 TIMEOUT_SECONDS = 60
 MAX_RETRIES = 2
+APIS = ("responses", "chat")  # Responses API or Chat Completions; models differ in support
+
+
+class ModelError(RuntimeError):
+    """A model call failed; the message says which model, why, and what to try."""
 
 
 @dataclass(frozen=True)
@@ -75,10 +80,18 @@ def response_text(response) -> str:
 
 
 class YandexModel:
-    """A text model of Yandex AI Studio, called through the Responses API."""
+    """A text model of Yandex AI Studio, through the Responses API or Chat Completions.
+
+    Alice AI, YandexGPT and DeepSeek answer through the Responses API; some open models of
+    AI Studio may be reachable only through Chat Completions (api="chat").
+    """
 
     def __init__(
-        self, model: str | None = None, api_key: str | None = None, folder_id: str | None = None
+        self,
+        model: str | None = None,
+        api_key: str | None = None,
+        folder_id: str | None = None,
+        api: str | None = None,
     ) -> None:
         load_env()
         self.api_key = api_key or os.environ.get("YANDEX_API_KEY")
@@ -86,6 +99,9 @@ class YandexModel:
         if not self.api_key or not self.folder_id:
             raise RuntimeError("Set YANDEX_API_KEY and YANDEX_FOLDER_ID in the .env file")
         self.name = model or os.environ.get("YANDEX_MODEL", DEFAULT_MODEL)
+        self.api = api or os.environ.get("YANDEX_API", "responses")
+        if self.api not in APIS:
+            raise ValueError(f"api must be one of {APIS}, not {self.api!r}")
         self._client = None
 
     @property
@@ -105,6 +121,30 @@ class YandexModel:
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion:
+        call = self._chat if self.api == "chat" else self._responses
+        try:
+            return call(system, user, temperature, max_tokens)
+        except Exception as error:
+            status = getattr(error, "status_code", None)
+            if status is None:
+                raise
+            raise ModelError(self._explain(status, error)) from error
+
+    def _explain(self, status: int, error: Exception) -> str:
+        kind = type(error).__name__
+        text = f"model {self.name!r} through the {self.api} API: HTTP {status} ({kind})"
+        if status in (401, 403):
+            other = "chat" if self.api == "responses" else "responses"
+            text += (
+                ". The key or the folder may have no access to this model, or the model may"
+                f" not be served through this API; try --api {other}"
+            )
+        elif status == 404:
+            text += ". Check the model name in the AI Studio model list"
+        details = getattr(error, "message", "") or ""
+        return f"{text}. {details}".strip()
+
+    def _responses(self, system: str, user: str, temperature: float, max_tokens: int):
         response = self.client.responses.create(
             model=f"gpt://{self.folder_id}/{self.name}",
             instructions=system,
@@ -120,6 +160,28 @@ class YandexModel:
             output_tokens=getattr(usage, "output_tokens", 0) or 0,
             complete=getattr(response, "status", None) in (None, "completed"),
             stop_reason=getattr(getattr(response, "incomplete_details", None), "reason", None),
+        )
+
+    def _chat(self, system: str, user: str, temperature: float, max_tokens: int):
+        response = self.client.chat.completions.create(
+            model=f"gpt://{self.folder_id}/{self.name}",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        choice = response.choices[0]
+        text = choice.message.content
+        if not text:
+            raise RuntimeError(f"The model returned no text (finish reason {choice.finish_reason})")
+        usage = getattr(response, "usage", None)
+        reason = choice.finish_reason
+        return Completion(
+            text=text,
+            model=self.name,
+            input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+            output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+            complete=reason in (None, "stop"),
+            stop_reason=None if reason in (None, "stop") else reason,
         )
 
 
@@ -157,7 +219,10 @@ class CachedModel:
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion:
-        path = self._path(BASE_URL, self.name, system, user, temperature, max_tokens)
+        api = getattr(self.model, "api", "responses")
+        # the API joins the key only when it is not the default, so older entries stay valid
+        parts = (BASE_URL, self.name, system, user, temperature, max_tokens)
+        path = self._path(*parts) if api == "responses" else self._path(*parts, api)
         if self.use_cache and (cached := self._read(path)):
             return cached
         completion = self.model.complete(

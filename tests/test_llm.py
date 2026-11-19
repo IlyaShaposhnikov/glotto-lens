@@ -92,3 +92,73 @@ def test_response_text_skips_blocks_without_text():
     assert response_text(SimpleNamespace(output_text="", output=[reasoning, message])) == "Answer"
     with pytest.raises(RuntimeError, match="reasoning"):
         response_text(SimpleNamespace(output_text=None, output=[reasoning]))
+
+
+class FakeError(Exception):
+    def __init__(self, status_code, message="denied"):
+        super().__init__(message)
+        self.status_code, self.message = status_code, message
+
+
+def fake_client(**handlers):
+    def create(handler):
+        return lambda **kwargs: handler(kwargs)
+
+    return SimpleNamespace(
+        responses=SimpleNamespace(create=create(handlers.get("responses"))),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create(handlers.get("chat")))),
+    )
+
+
+def test_chat_completions_api(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+    seen = {}
+
+    def chat(kwargs):
+        seen.update(kwargs)
+        message = SimpleNamespace(content="ответ")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message, finish_reason="length")],
+            usage=SimpleNamespace(prompt_tokens=7, completion_tokens=3),
+        )
+
+    model = YandexModel("qwen", api="chat")
+    model._client = fake_client(chat=chat)
+    completion = model.complete("system", "user", max_tokens=5)
+    assert seen["model"] == "gpt://f/qwen" and seen["messages"][0]["role"] == "system"
+    assert (completion.text, completion.input_tokens, completion.complete) == ("ответ", 7, False)
+    assert completion.stop_reason == "length"
+
+
+def test_api_errors_name_the_model_and_the_way_out(monkeypatch):
+    from glotto_lens.llm import ModelError
+
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+
+    def refuse(kwargs):
+        raise FakeError(403)
+
+    model = YandexModel("gpt-oss-120b")
+    model._client = fake_client(responses=refuse)
+    with pytest.raises(ModelError, match="'gpt-oss-120b' through the responses API: HTTP 403"):
+        model.complete("s", "u")
+    with pytest.raises(ModelError, match="try --api chat"):
+        model.complete("s", "u")
+
+
+def test_unknown_api_is_rejected(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+    with pytest.raises(ValueError):
+        YandexModel(api="grpc")
+
+
+def test_chat_api_has_its_own_cache_entries(tmp_path):
+    inner = CountingModel()
+    model = CachedModel(inner, tmp_path / "cache", tmp_path / "usage.jsonl")
+    model.complete("system", "hello")
+    inner.api = "chat"
+    model.complete("system", "hello")
+    assert inner.calls == 2

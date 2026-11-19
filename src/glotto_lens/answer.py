@@ -23,7 +23,7 @@ from pathlib import Path
 from glotto_lens import prompts
 from glotto_lens.context import Citation, Context, build_context, citations, render_context
 from glotto_lens.documents import RELEASES
-from glotto_lens.llm import CachedModel, ChatModel, Completion, YandexModel
+from glotto_lens.llm import APIS, CachedModel, ChatModel, Completion, ModelError, YandexModel
 from glotto_lens.sources import DATA_DIR, DB_PATH
 
 ANSWER_LOG = DATA_DIR / "answers.jsonl"
@@ -214,10 +214,14 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument("-m", "--model", help="model name, e.g. aliceai-llm")
     parser.add_argument("--show-context", action="store_true", help="print the evidence too")
     parser.add_argument("--no-cache", action="store_true", help="always call the model")
+    parser.add_argument("--api", choices=APIS, help="AI Studio API to call (default: responses)")
     args = parser.parse_args(argv)
-    model = model or CachedModel(YandexModel(args.model), use_cache=not args.no_cache)
+    model = model or CachedModel(YandexModel(args.model, api=args.api), use_cache=not args.no_cache)
     with closing(sqlite3.connect(DB_PATH)) as conn:
-        answer = answer_question(conn, model, args.question, args.language)
+        try:
+            answer = answer_question(conn, model, args.question, args.language)
+        except ModelError as error:
+            sys.exit(f"The model call failed: {error}")
     log_answer(answer, model.name)
     print(render_answer(answer, args.show_context))
 

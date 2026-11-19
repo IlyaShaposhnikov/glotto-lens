@@ -19,7 +19,8 @@ Metrics, per item and averaged:
   "content correct" = right language and the answer states the value in any wording (the
   citation is not required); for no_data items, "admits missing data" = the answer says
   the value is missing or unknown and gives none. It runs beside the phrase check, so the
-  two can be compared, and the judge is the same model as the one it judges.
+  two can be compared. By default the judge is the model being judged; --judge-model
+  names another one, which avoids a model grading its own wording.
 Items that contradict the data are reported and left out of every metric.
 
 Usage:
@@ -49,7 +50,7 @@ from glotto_lens.answer import Answer, answer_question, first_json_object, retri
 from glotto_lens.cliargs import non_negative
 from glotto_lens.documents import RELEASES
 from glotto_lens.languages import KNOWN_FACTS, find_languages, language_profile
-from glotto_lens.llm import CachedModel, ChatModel, Completion, YandexModel
+from glotto_lens.llm import APIS, CachedModel, ChatModel, Completion, YandexModel
 from glotto_lens.sources import DATA_DIR, DB_PATH
 
 QUESTIONS = Path(__file__).resolve().parents[2] / "eval" / "questions.jsonl"
@@ -142,6 +143,8 @@ class Score:
     answer: str = ""
     judged: bool | None = None  # the judge's verdict (with --judge), see the module docstring
     judge_reason: str = ""
+    judge_input_tokens: int = 0  # kept apart from the answer's tokens: runs stay comparable
+    judge_output_tokens: int = 0
 
 
 def load_items(path: Path = QUESTIONS) -> list[Item]:
@@ -271,12 +274,27 @@ FEATURE_NAME = "SELECT name FROM features WHERE id = ?"
 
 
 def expected_text(conn: sqlite3.Connection, item: Item, expected: Gold) -> str:
-    """What the judge compares the answer with: the feature and its recorded value."""
+    """What the judge compares the answer with: the feature and what is recorded for it.
+
+    Without a coded value there are three different states, and the judge is told which:
+    a value written only as text, a value coded as not known (?), or no entry at all.
+    """
     row = conn.execute(FEATURE_NAME, (item.feature,)).fetchone()
     feature = f"{item.feature} {row[0] if row else ''}".strip()
-    if expected.value is None:
-        return f"Feature {feature}: no value is recorded for this language."
-    return f"Feature {feature}: {expected.value}"
+    if expected.value is not None:
+        return f"Feature {feature}: {expected.value}"
+    profile = language_profile(conn, expected.glottocode) if expected.glottocode else None
+    facts = [
+        fact
+        for fact in (profile.facts if profile else [])
+        if f"{fact.source}:{fact.feature}" == item.feature
+    ]
+    texts = [fact.value for fact in facts if fact.value is not None and not fact.known]
+    if texts:
+        return f"Feature {feature}: no coded value; recorded only as text: {texts[0]}"
+    if facts:
+        return f"Feature {feature}: the value is coded as not known (?) for this language."
+    return f"Feature {feature}: no value is recorded for this language."
 
 
 def judge(model: ChatModel, item: Item, expected_record: str, answer_text: str) -> Completion:
@@ -294,21 +312,29 @@ def judge(model: ChatModel, item: Item, expected_record: str, answer_text: str) 
 def parse_verdict(text: str) -> tuple[bool | None, str]:
     """The judge's verdict and reason; None when the reply cannot be read."""
     data = first_json_object(text)
-    if not data or not isinstance(data.get("verdict"), bool):
+    verdict = data.get("verdict") if data else None
+    if isinstance(verdict, str) and verdict.strip().lower() in ("true", "false"):
+        verdict = verdict.strip().lower() == "true"
+    if not isinstance(verdict, bool):
         return None, f"unreadable verdict: {text.strip()[:200]}"
-    return data["verdict"], str(data.get("reason", ""))
+    return verdict, str(data.get("reason", ""))
 
 
 def apply_judge(score_: Score, call: Completion) -> Score:
-    verdict, reason = parse_verdict(call.text)
-    if verdict is not None and score_.expect == "value":
-        verdict = verdict and score_.language  # a right value for another language is wrong
+    if call.complete:
+        verdict, reason = parse_verdict(call.text)
+    else:
+        verdict, reason = None, f"judge reply cut off ({call.stop_reason or 'unknown reason'})"
+    if verdict is not None:
+        # the judge does not know the glottocode: an answer about another language is wrong,
+        # whether it gives a value or admits a gap
+        verdict = verdict and score_.language
     return replace(
         score_,
         judged=verdict,
         judge_reason=reason,
-        input_tokens=score_.input_tokens + (0 if call.cached else call.input_tokens),
-        output_tokens=score_.output_tokens + (0 if call.cached else call.output_tokens),
+        judge_input_tokens=0 if call.cached else call.input_tokens,
+        judge_output_tokens=0 if call.cached else call.output_tokens,
     )
 
 
@@ -348,13 +374,19 @@ def _judge_summary(answered: list[Score]) -> dict[str, str]:
     if not judged and not any(s.judge_reason for s in answered):
         return {}  # the judge was not used
     values = [s for s in judged if s.expect == "value"]
-    gaps_ = [s for s in judged if s.expect == "no_data"]
+    no_data_items = [s for s in judged if s.expect == "no_data"]
     return {
         "judge: content correct": _share([s.judged for s in values]),
-        "judge: admits missing data": _share([s.judged for s in gaps_]),
-        "judge agrees with correct": _share([s.judged == s.correct for s in values]),
-        "judge agrees with honest": _share([s.judged == s.honest for s in gaps_]),
+        "judge: admits missing data": _share([s.judged for s in no_data_items]),
+        # "correct" also needs the right citation, so the two disagree by design sometimes
+        "judge yes, citation check no": str(sum(s.judged and not s.correct for s in values)),
+        "judge no, citation check yes": str(sum(s.correct and not s.judged for s in values)),
+        "judge agrees with honest": _share([s.judged == s.honest for s in no_data_items]),
         "judge verdicts unreadable": str(sum(s.judged is None for s in answered)),
+        "judge tokens (in / out)": (
+            f"{sum(s.judge_input_tokens for s in answered)}"
+            f" / {sum(s.judge_output_tokens for s in answered)}"
+        ),
     }
 
 
@@ -364,12 +396,13 @@ def evaluate_items(
     items: Iterable[Item],
     retrieval_only: bool = False,
     use_judge: bool = False,
+    judge_model: ChatModel | None = None,
 ) -> Iterator[Score]:
     """Score items one by one; a failing call is recorded as an error and the run goes on.
 
     With retrieval_only, only the rewrite is requested (usually from the cache), so
     retrieval settings can be compared for free. With use_judge, each answer also gets an
-    LLM verdict (see the module docstring); a failing judge call leaves the verdict empty.
+    LLM verdict from judge_model (default: model); a failing judge call leaves it empty.
     """
     for item in items:
         expected = Gold(item.glottocode, None)
@@ -382,7 +415,8 @@ def evaluate_items(
                 if use_judge:
                     record = expected_text(conn, item, expected)
                     try:
-                        result = apply_judge(result, judge(model, item, record, result.answer))
+                        verdict = judge(judge_model or model, item, record, result.answer)
+                        result = apply_judge(result, verdict)
                     except Exception as error:  # noqa: BLE001 - keep the paid answer
                         result = replace(result, judge_reason=f"{type(error).__name__}: {error}")
                 yield result
@@ -397,8 +431,11 @@ def evaluate_items(
             )
 
 
-def evaluate(conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item]) -> list[Score]:
-    return list(evaluate_items(conn, model, items))
+def evaluate(
+    conn: sqlite3.Connection, model: ChatModel, items: Iterable[Item], **options
+) -> list[Score]:
+    """All scores at once; options as for evaluate_items (retrieval_only, use_judge, ...)."""
+    return list(evaluate_items(conn, model, items, **options))
 
 
 def write_report(path: Path, data: dict) -> None:
@@ -447,7 +484,9 @@ def code_version() -> str | None:
     return f"{commit}+dirty" if changes else commit
 
 
-def experiment_identity(items_path: Path, use_judge: bool = False) -> dict:
+def experiment_identity(
+    items_path: Path, use_judge: bool = False, judge_model: str | None = None
+) -> dict:
     """What a report depends on: the code commit, data releases, prompts, the question set,
     the metric, the retrieval settings and, with a judge, the judge prompts."""
     prompt_text = "".join(
@@ -463,6 +502,7 @@ def experiment_identity(items_path: Path, use_judge: bool = False) -> dict:
     }
     if use_judge:
         identity["judge_sha256"] = _sha256(prompts.JUDGE_SYSTEM + prompts.JUDGE_USER)
+        identity["judge_model"] = judge_model
     return identity
 
 
@@ -521,9 +561,14 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument(
         "--judge", action="store_true", help="add an LLM verdict on each answer (full runs)"
     )
+    parser.add_argument("--judge-model", help="model for the judge (default: the answer model)")
+    parser.add_argument("--api", choices=APIS, help="AI Studio API for the answer model")
+    parser.add_argument("--judge-api", choices=APIS, help="AI Studio API for the judge model")
     args = parser.parse_args(argv)
     if args.judge and args.retrieval_only:
         parser.error("--judge needs answers; drop --retrieval-only")
+    if (args.judge_model or args.judge_api) and not args.judge:
+        parser.error("--judge-model and --judge-api need --judge")
     if args.feature_text_limit is not None:
         context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit
     if args.max_features is not None:
@@ -563,14 +608,21 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
         if problems:
             print("Left out, inconsistent with the data:\n" + "\n".join(problems) + "\n")
         usable = [item for item, problem in checked if problem is None]
-        model = model or CachedModel(YandexModel(args.model), use_cache=not args.no_cache)
+        model = model or CachedModel(
+            YandexModel(args.model, api=args.api), use_cache=not args.no_cache
+        )
+        judge_model = model
+        if args.judge_model or args.judge_api:
+            judge_model = CachedModel(
+                YandexModel(args.judge_model, api=args.judge_api), use_cache=not args.no_cache
+            )
         REPORTS.mkdir(parents=True, exist_ok=True)
         safe_name = re.sub(r"[^\w.-]", "_", model.name)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         report = REPORTS / f"eval-{safe_name}-{stamp}-{time.time_ns() % 10**6:06d}.json"
         scores: list[Score] = []
         try:
-            runs = evaluate_items(conn, model, usable, args.retrieval_only, args.judge)
+            runs = evaluate_items(conn, model, usable, args.retrieval_only, args.judge, judge_model)
             for number, s in enumerate(runs, start=1):
                 scores.append(s)
                 verdict = s.error or (s.correct if s.correct is not None else s.honest)
@@ -590,7 +642,7 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
                     {
                         "model": model.name,
                         "mode": "retrieval only" if args.retrieval_only else "full",
-                        **experiment_identity(args.questions, args.judge),
+                        **experiment_identity(args.questions, args.judge, judge_model.name),
                         "selection": {"only": args.only, "limit": args.limit},
                         "finished": len(scores) == len(usable),
                         "left_out": problems,
