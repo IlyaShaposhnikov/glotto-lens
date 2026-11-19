@@ -127,6 +127,10 @@ is not. Each item names the feature that answers it and the glottocode the langu
 resolve to. The expected values are never written by hand: they are read from the
 database, and `check` verifies that every item agrees with the data.
 
+A second set, [`eval/heldout.jsonl`](eval/heldout.jsonl), has 32 questions (23 with a value,
+9 without) about 30 languages, none of them in the first set; a test keeps it so. It was
+committed before its first run and is not used for tuning (`--questions eval/heldout.jsonl`).
+
 ```bash
 glotto-lens eval check                     # free: items agree with the data
 glotto-lens eval gaps grambank:GB020       # free: languages without a value, for new no-data items
@@ -184,6 +188,37 @@ What the numbers say:
   baseline honesty figure was measured with an earlier version of the check.
 - The set grew from 40 to 41 questions after the baseline (one English no-data question).
 
+### Results: held-out set
+
+Alice AI, the settings of the last retrieval row, judge DeepSeek V4.1 Flash; commit
+`c6f6c82`, one run. Nothing was changed after it.
+
+| Set | Retrieved | Correct | Honest | Invalid citations | Judge: value | Judge: no data | Report |
+|---|---|---|---|---|---|---|---|
+| Tuning set (41 questions, last retrieval row) | 40/41 | 31/33 | 8/8 | 0 | — | — | [4](eval/reports/4-pool-by-feature.json) |
+| Held-out set (32 questions) | **32/32** | **23/23** | **6/9** | **0** | 23/23 | 7/9 | [heldout](eval/reports/heldout-aliceai-llm.json) |
+
+What the numbers say:
+
+- **Retrieval and value answers carry over.** Every feature was found, including WALS 30A
+  for Zulu noun classes, the kind of question that fails for Swahili in the tuning set:
+  "Сколько именных классов (родов)" is rewritten as "number of genders". Every value answer
+  cites the right line.
+- **Honesty does not carry over as well**, and the three misses are of different kinds:
+  - `h-ita-13A` takes the missing value as evidence: "Italian has no tones, which is
+    confirmed by the absence of a value in WALS". Both checks fail it; it is the one clear
+    error.
+  - `h-com-GB020` answers from WALS 37A, where Comanche has a value ("demonstrative word
+    used as definite article"). The question does not name a database, so the answer is
+    supported; the item is weaker than it looked when it was written.
+  - `h-bak-81A` says "Данные о базовом порядке слов (SOV, SVO и т. д.) в WALS не
+    зафиксированы". The judge accepts it; the phrase check misses it because the period in
+    "т. д." ends its sentence window.
+- The 8/8 honesty of the tuning set was partly tuned: the phrase check grew on its answers.
+  On new questions a reasonable reading is 7–8 of 9, and the check alone gives 6.
+- Neither miss was fixed here: changing the metric or the item after the run would make
+  this row a tuning row.
+
 ### Results: answer models
 
 Five models from the Yandex AI Studio catalogue answer the same 41 questions on the same
@@ -230,9 +265,10 @@ What the numbers say:
 
 ## Limitations
 
-- **Tuned on the test set.** Retrieval settings and the rewrite examples were chosen while
-  looking at these 41 questions; there is no held-out set yet. The figures show what the
-  changes fixed, not how the system does on new questions.
+- **Tuned on the test set, checked once on a held-out set.** Retrieval settings, the rewrite
+  examples and the honesty check were chosen while looking at the 41 tuning questions. The
+  held-out set (32 questions, other languages) has been run once; it is small, and a second
+  look at it would no longer be held out.
 - **Small set.** On 33 value questions one answer is 3 percentage points, and answers vary
   between runs when the evidence changes. In the last row `rus-117A` (possession in
   Russian) failed because the answer cited the Grambank lines instead of the WALS 117A
@@ -244,7 +280,8 @@ What the numbers say:
 - **Honesty is a phrase check.** It recognises Russian and English wordings of "no data"
   with a regular expression. It also accepts some claims about the language
   ("род неизвестен"), and it took several corrections to cover the phrasings the models
-  actually use; the LLM judge now flags the phrasings it misses.
+  actually use; the LLM judge now flags the phrasings it misses. Abbreviations with a
+  period ("т. д.") end its sentence window (`h-bak-81A`).
 - **The judge is a model too.** It sees no evidence, so it checks the recorded value, not
   whether the answer is supported. DeepSeek judges its own answers in its row, and on long
   answers its reply can be cut off (`kom-30A`). It reasons by default, so it uses several
