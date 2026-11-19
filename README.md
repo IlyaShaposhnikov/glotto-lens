@@ -132,10 +132,14 @@ glotto-lens eval check                     # free: items agree with the data
 glotto-lens eval gaps grambank:GB020       # free: languages without a value, for new no-data items
 glotto-lens eval run --retrieval-only      # nearly free: rewrite and retrieval only
 glotto-lens eval run                       # full run, about 105k input tokens
+glotto-lens eval run --judge --judge-model deepseek-v4.1-flash   # plus an LLM verdict per answer
+glotto-lens eval run -m yandexgpt-5.1 --rewrite-model aliceai-llm  # another answer model, same evidence
 ```
 
 Every report records what it depends on: the git commit of the code, data releases, hashes
-of the prompts, of the question set and of the metric code, and the retrieval settings.
+of the prompts, of the question set and of the metric code, the retrieval settings, and the
+models with their settings (API, reasoning effort). Answers and verdicts are cached, so
+rerunning a finished run, or one where some calls failed, only pays for what is missing.
 
 ### Metrics
 
@@ -146,8 +150,13 @@ of the prompts, of the question set and of the metric code, and the retrieval se
 | correct | value items | right language, and the answer cites a value line of the expected feature with the recorded value |
 | honest | no-data items | right language, feature retrieved, no coded value of it cited, and the answer says the data is missing |
 | no invalid citations | all items | the answer cites only labels present in the evidence |
+| judge (with `--judge`) | all items | an LLM, given the question, the recorded value and the answer, but not the evidence, says the answer states that value or admits the gap |
 
-### Results
+The judge is a cross-check, not the main metric: where it and the code-based checks
+disagree, the answer is read by hand. That is how three more ways of saying "no data" were
+found (see below).
+
+### Results: retrieval
 
 Alice AI (`aliceai-llm`), temperature 0. Each row is one change, measured on the full set.
 The reports behind the rows are in [`eval/reports/`](eval/reports): every answer, the
@@ -175,6 +184,42 @@ What the numbers say:
   baseline honesty figure was measured with an earlier version of the check.
 - The set grew from 40 to 41 questions after the baseline (one English no-data question).
 
+### Results: answer models
+
+Five models from the Yandex AI Studio catalogue answer the same 41 questions on the same
+evidence: Alice AI rewrites every question (`--rewrite-model aliceai-llm`), so only the
+answer differs. Temperature 0, reasoning off for DeepSeek and Qwen
+(`--reasoning-effort none`), judge DeepSeek V4.1 Flash. Commit `e5a211b`.
+
+| Answer model | Correct | Honest | Answers with invalid citations | Judge: value | Judge: no data | Output tokens | Report |
+|---|---|---|---|---|---|---|---|
+| Alice AI LLM (`aliceai-llm`) | 31/33 | 8/8 | 0 | 31/33 | 7/8 | ~2.2k¹ | [alice](eval/reports/cmp-aliceai-llm.json) |
+| Alice AI LLM Flash (`aliceai-llm-flash`) | 31/33 | 8/8 | 0 | 32/33 | 8/8 | 2.2k | [flash](eval/reports/cmp-aliceai-llm-flash.json) |
+| YandexGPT 5.1 Pro (`yandexgpt-5.1`) | **32/33** | 7/8 | 0 | 32/33 | 7/8 | 2.3k | [yandexgpt](eval/reports/cmp-yandexgpt-5.1.json) |
+| DeepSeek V4.1 Flash (`deepseek-v4.1-flash`) | **32/33** | **8/8** | 0 | 32/33 | 8/8 | 7.9k | [deepseek](eval/reports/cmp-deepseek-v4.1-flash.json) |
+| Qwen3.6-35B (`qwen3.6-35b-a3b`) | 31/33 | 8/8 | 1 | 32/33 | 7/7² | 6.4k | [qwen](eval/reports/cmp-qwen3.6-35b-a3b.json) |
+
+¹ Alice's answers came from the cache, so the report has no token count; the figure is from
+the last paid run. ² The judge's reply on `kom-30A` was cut off at 2000 tokens.
+
+What the numbers say:
+
+- **The models are within one answer of each other.** One answer is 3 points on 33
+  questions, and every model was run once, so the table does not rank them. 32/33 is the
+  ceiling: `en-swa-30A` fails in retrieval for everyone.
+- **The misses are about citing, not knowing.** Alice and Alice Flash cite the Grambank
+  lines instead of WALS 117A on `rus-117A`. Qwen writes "(V1)" without brackets on
+  `bsq-37A` and cites a label that is not in the evidence on `geo-1A`. YandexGPT on `kom-30A`
+  says Komi has no gender, where WALS has no value; it is the only dishonest answer.
+- **DeepSeek and Qwen write three times as much** for the same scores, even with reasoning
+  off.
+- **The judge found three gaps in the honesty check**: "WALS does not provide a value",
+  "значение не установлено", and a negation 16 words after "значения". The check now
+  accepts them; no other answer in any report changed its score.
+- **The judge is stricter on hedged answers.** On `kom-30A` Alice says WALS has no value but
+  concludes from Grambank that there is no gender; the phrase check passes it, the judge
+  does not. On `fra-87A` it rejects "after the noun, and in both orders".
+
 ## Limitations
 
 - **Tuned on the test set.** Retrieval settings and the rewrite examples were chosen while
@@ -190,14 +235,19 @@ What the numbers say:
   features outrank WALS 30A. Embeddings as a second search channel would address this.
 - **Honesty is a phrase check.** It recognises Russian and English wordings of "no data"
   with a regular expression. It also accepts some claims about the language
-  ("род неизвестен"), and it took several corrections to cover the phrasings Alice AI
-  actually uses. An LLM judge would be more robust and is planned.
+  ("род неизвестен"), and it took several corrections to cover the phrasings the models
+  actually use; the LLM judge now flags the phrasings it misses.
+- **The judge is a model too.** It sees no evidence, so it checks the recorded value, not
+  whether the answer is supported. DeepSeek judges its own answers in its row, and on long
+  answers its reply can be cut off (`kom-30A`). It reasons by default, so it uses several
+  times more output tokens than the answer models.
 - **One language per question.** Comparisons ("Russian vs Polish") and questions about
   languages in general are not supported yet.
 - **Coverage.** The databases have gaps (Grambank has no data for Standard German, for
   example), and 17 WALS languages have no glottocode, so their values cannot be looked up
   by name through Glottolog.
-- **One model.** Only Alice AI has been evaluated.
+- **One run per model.** The comparison has no repeats, and reasoning (chain of thought)
+  has not been tried yet: DeepSeek and Qwen answered with it turned off.
 
 ## Project layout
 
