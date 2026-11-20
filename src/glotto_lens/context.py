@@ -38,6 +38,9 @@ TEXT_LIMIT = 5
 FEATURE_TEXT_LIMIT = 3  # of their documents, shown as texts
 LANGUAGE_TEXT_LIMIT = 3
 MAX_FEATURES = 8
+# An embedder (glotto_lens.vectors) turns on hybrid search for the feature pool: BM25 and
+# embeddings fused with RRF. None: BM25 only.
+EMBEDDER = None
 VALUE_URLS = {
     "wals": "https://wals.info/datapoint/{feature}/wals_code_{entry}",
     "grambank": "https://grambank.clld.org/valuesets/{feature}-{entry}",
@@ -132,9 +135,20 @@ def build_context(conn: sqlite3.Connection, question: str, language: str | None 
         context.languoid, *context.other_candidates = candidates
     glottocode = context.languoid.glottocode if context.languoid else None
 
-    general = search(conn, question, TEXT_LIMIT)
-    pool = search(conn, question, pool_size(), per_feature=True)
-    features = related_features(conn, _merge(general, pool))
+    if EMBEDDER is not None:
+        from glotto_lens.vectors import hybrid_features  # numpy only when it is used
+
+        # Fused scores (about 1/60) cannot be sorted together with BM25 scores (units to
+        # tens), so the pool alone ranks the features, and the general search adds only
+        # chapter texts: its BM25-ranked feature documents would bring back the order the
+        # hybrid pool is there to correct.
+        general = search(conn, question, TEXT_LIMIT, kind="chapter")
+        pool = hybrid_features(conn, question, pool_size(), EMBEDDER)
+        features = related_features(conn, [*pool, *general])
+    else:
+        general = search(conn, question, TEXT_LIMIT)
+        pool = search(conn, question, pool_size(), per_feature=True)
+        features = related_features(conn, _merge(general, pool))
     # texts only for features whose values are shown
     found = _merge(general, pool[: min(FEATURE_TEXT_LIMIT, MAX_FEATURES)])
     context.dropped_features = max(0, len(features) - MAX_FEATURES)
@@ -254,9 +268,20 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Show the evidence collected for a question.")
     parser.add_argument("question", help="question in English, e.g. 'word order'")
     parser.add_argument("-l", "--language", help="language name or code, e.g. Russian or rus")
+    parser.add_argument(
+        "--hybrid", action="store_true", help="BM25 and embeddings (needs 'glotto-lens embed')"
+    )
     args = parser.parse_args(argv)
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        print(render_context(build_context(conn, args.question, args.language)))
+    global EMBEDDER
+    try:
+        if args.hybrid:
+            from glotto_lens.vectors import default_embedder
+
+            EMBEDDER = default_embedder()
+        with closing(sqlite3.connect(DB_PATH)) as conn:
+            print(render_context(build_context(conn, args.question, args.language)))
+    except RuntimeError as error:  # no vectors or no API key; ModelError is one too
+        sys.exit(str(error))
 
 
 if __name__ == "__main__":

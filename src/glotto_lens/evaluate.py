@@ -559,7 +559,7 @@ def retrieval_settings() -> dict:
     """Retrieval constants that change results, recorded with every report."""
     from glotto_lens import context, search
 
-    return {
+    settings = {
         "text_limit": context.TEXT_LIMIT,
         # features (one document each) really searched; older reports had "feature_pool",
         # counted in documents, so the two are not comparable
@@ -572,6 +572,15 @@ def retrieval_settings() -> dict:
         ).hexdigest(),
         "stopwords": sorted(search.STOPWORDS),
     }
+    if context.EMBEDDER is not None:  # absent for BM25 runs, so their identity is unchanged
+        from glotto_lens import vectors
+
+        try:  # read-only: a report never creates the database
+            with closing(sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)) as conn:
+                settings["hybrid"] = vectors.settings(conn)
+        except sqlite3.OperationalError:
+            settings["hybrid"] = vectors.settings()
+    return settings
 
 
 def main(
@@ -595,6 +604,12 @@ def main(
     )
     parser.add_argument("--max-features", type=non_negative, help="override MAX_FEATURES")
     parser.add_argument(
+        "--hybrid", action="store_true", help="BM25 and embeddings (needs 'glotto-lens embed')"
+    )
+    parser.add_argument(
+        "--fusion", choices=("slots", "rrf"), help="how --hybrid fuses the rankings"
+    )
+    parser.add_argument(
         "--judge", action="store_true", help="add an LLM verdict on each answer (full runs)"
     )
     parser.add_argument("--judge-model", help="model for the judge (default: the answer model)")
@@ -615,6 +630,19 @@ def main(
         context_settings.FEATURE_TEXT_LIMIT = args.feature_text_limit
     if args.max_features is not None:
         context_settings.MAX_FEATURES = args.max_features
+    if args.fusion and not args.hybrid:
+        parser.error("--fusion needs --hybrid")
+    if args.hybrid:
+        from glotto_lens import vectors
+
+        if args.fusion:
+            vectors.FUSION = args.fusion
+        try:
+            context_settings.EMBEDDER = vectors.default_embedder()
+            with closing(sqlite3.connect(DB_PATH)) as conn:
+                vectors.check_ready(conn, context_settings.EMBEDDER.name)
+        except RuntimeError as error:
+            parser.error(str(error))
     with closing(sqlite3.connect(DB_PATH)) as conn:
         if args.command == "gaps":
             if not args.feature:

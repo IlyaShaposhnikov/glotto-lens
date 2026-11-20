@@ -12,6 +12,7 @@ license = "MIT"
 authors = [{ name = "Ilya Shaposhnikov" }]
 dependencies = [
     "beautifulsoup4>=4.12",
+    "numpy>=1.26",
     "openai>=1.66",
 ]
 

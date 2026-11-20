@@ -38,6 +38,8 @@ MENTIONS_LANGUAGE = (
 URLS = """
     SELECT c.url FROM document_chapters dc JOIN chapters c ON c.id = dc.chapter_id
     WHERE dc.document_id = ? ORDER BY c.rowid"""
+DOCUMENT = "SELECT kind, title, section, text, url, feature_id FROM documents WHERE id = ?"
+SNIPPET_CHARS = 200
 
 
 @dataclass(frozen=True)
@@ -90,11 +92,28 @@ def search(
     hits = []
     for row in conn.execute(query, params).fetchall():
         document_id, score, kind_, title, section, text, url, snippet, feature_id = row
-        urls = [url] if url else []
-        urls += [url_row[0] for url_row in conn.execute(URLS, (document_id,))]
-        urls = tuple(dict.fromkeys(urls))
+        urls = _urls(conn, document_id, url)
         hits.append(Hit(document_id, score, kind_, title, section, text, urls, snippet, feature_id))
     return hits
+
+
+def _urls(conn: sqlite3.Connection, document_id: int, url: str | None) -> tuple[str, ...]:
+    urls = [url] if url else []
+    urls += [url_row[0] for url_row in conn.execute(URLS, (document_id,))]
+    return tuple(dict.fromkeys(urls))
+
+
+def document_hit(conn: sqlite3.Connection, document_id: int, score: float) -> Hit:
+    """A hit for a document found without full-text search (by its vector)."""
+    row = conn.execute(DOCUMENT, (document_id,)).fetchone()
+    if row is None:
+        raise RuntimeError(
+            f"document {document_id} has a vector but no text: rebuild, then 'glotto-lens embed'"
+        )
+    kind, title, section, text, url, feature_id = row
+    snippet = " ".join(text.split())[:SNIPPET_CHARS]
+    urls = _urls(conn, document_id, url)
+    return Hit(document_id, score, kind, title, section, text, urls, snippet, feature_id)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -107,16 +126,38 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="best document of each feature, as the evidence is chosen",
     )
+    channels = parser.add_mutually_exclusive_group()
+    channels.add_argument(
+        "--hybrid",
+        action="store_true",
+        help="features ranked by BM25 and embeddings together (needs 'glotto-lens embed')",
+    )
+    channels.add_argument(
+        "--vectors-only", action="store_true", help="features ranked by embeddings alone"
+    )
     args = parser.parse_args(argv)
-    if args.per_feature and args.kind == "chapter":
-        parser.error("--per-feature ranks feature documents; drop --kind chapter")
+    vector = args.hybrid or args.vectors_only
+    if (args.per_feature or vector) and args.kind == "chapter":
+        parser.error("--per-feature, --hybrid and --vectors-only rank feature documents")
     question = " ".join(args.query)
     with closing(sqlite3.connect(DB_PATH)) as conn:
-        hits = search(conn, question, args.limit, kind=args.kind, per_feature=args.per_feature)
-    print(f"Query: {to_match_query(question)}")
+        if vector:
+            from glotto_lens import vectors
+
+            try:
+                rank = vectors.hybrid_features if args.hybrid else vectors.vector_features
+                hits = rank(conn, question, args.limit, vectors.default_embedder())
+            except RuntimeError as error:
+                sys.exit(str(error))
+        else:
+            hits = search(conn, question, args.limit, kind=args.kind, per_feature=args.per_feature)
+    if args.vectors_only:
+        print(f"Vector query: {question}")
+    else:
+        print(f"Query: {to_match_query(question)}")
     for rank, hit in enumerate(hits, start=1):
         feature = f" ({hit.feature_id})" if hit.feature_id else ""
-        print(f"\n{rank}. [{hit.score:.1f}] {hit.kind}{feature}: {hit.title} / {hit.section}")
+        print(f"\n{rank}. [{hit.score:.3g}] {hit.kind}{feature}: {hit.title} / {hit.section}")
         print("   " + ", ".join(hit.urls))
         print("   " + hit.snippet.replace("\n", " "))
 

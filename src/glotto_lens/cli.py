@@ -5,6 +5,7 @@
     glotto-lens evidence QUERY [-l LANGUAGE]   show the evidence without calling the model
     glotto-lens lang NAME [NAME ...]           look up languages by name or code
     glotto-lens search QUERY                   full-text search over the documents
+    glotto-lens embed                          embed feature documents for hybrid search
     glotto-lens eval {check,gaps,run} ...      evaluate on the question set
 
 Each command is the module's own command line (python -m glotto_lens.answer and so on),
@@ -24,6 +25,7 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "evidence": ("context", "show the evidence for a query, no model call"),
     "lang": ("languages", "look up languages by name or code"),
     "search": ("search", "full-text search over the documents"),
+    "embed": ("vectors", "embed feature documents for --hybrid search (needs an API key)"),
     "eval": ("evaluate", "evaluate on the question set: check, gaps, run"),
 }
 

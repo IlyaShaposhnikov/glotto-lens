@@ -226,7 +226,20 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     parser.add_argument(
         "--reasoning-effort", help='for reasoning models, e.g. "none" to answer without reasoning'
     )
+    parser.add_argument(
+        "--hybrid", action="store_true", help="BM25 and embeddings (needs 'glotto-lens embed')"
+    )
     args = parser.parse_args(argv)
+    if args.hybrid:
+        from glotto_lens import context
+        from glotto_lens.vectors import check_ready, default_embedder
+
+        try:
+            context.EMBEDDER = default_embedder()
+            with closing(sqlite3.connect(DB_PATH)) as conn:
+                check_ready(conn, context.EMBEDDER.name)
+        except RuntimeError as error:
+            sys.exit(str(error))
     model = model or CachedModel(
         YandexModel(args.model, api=args.api, reasoning_effort=args.reasoning_effort),
         use_cache=not args.no_cache,
@@ -236,6 +249,8 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
             answer = answer_question(conn, model, args.question, args.language)
         except ModelError as error:
             sys.exit(f"The model call failed: {error}")
+        except RuntimeError as error:  # e.g. --hybrid before 'glotto-lens embed'
+            sys.exit(str(error))
         log_answer(answer, model.name)
         print(render_answer(answer, args.show_context))
 
