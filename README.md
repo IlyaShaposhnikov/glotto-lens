@@ -236,7 +236,7 @@ answer differs. Temperature 0, reasoning off for DeepSeek and Qwen
 | DeepSeek V4.1 Flash, reasoning on³ | **32/33** | **8/8** | 0 | 32/33 | 8/8 | 19.7k | [reasoning](eval/reports/cmp-deepseek-v4.1-flash-reasoning.json) |
 
 ¹ Alice's answers came from the cache, so the report has no token count; the figure is from
-the last paid run. ² The judge's reply on `kom-30A` was cut off at 2000 tokens.
+the last paid run and includes the rewrite step, which the other rows took from the cache. ² The judge's reply on `kom-30A` was cut off at 2000 tokens.
 ³ The model's default reasoning, commit `892fe3a`; two answers (`eng-49A`, `yor-13A`) were
 cut off at the 1000-token limit after they had cited the value.
 
@@ -286,6 +286,12 @@ What the numbers say:
   whether the answer is supported. DeepSeek judges its own answers in its row, and on long
   answers its reply can be cut off (`kom-30A`). It reasons by default, so it uses several
   times more output tokens than the answer models.
+- **One record per question.** Each item is scored against one feature, but a question that
+  names no database can be answered from the other one: for `abk-GB028` and `h-com-GB020`
+  Grambank has no value and WALS has one (39A, 37A). The judge sees only the item's record
+  and counts such answers as claims. A prompt rule against answering from other features
+  was tried on the tuning set: `kom-30A` kept its conclusion, `abk-GB028` lost its hedge,
+  and the rule was dropped.
 - **One language per question.** Comparisons ("Russian vs Polish") and questions about
   languages in general are not supported yet.
 - **Coverage.** The databases have gaps (Grambank has no data for Standard German, for

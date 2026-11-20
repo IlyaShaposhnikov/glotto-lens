@@ -295,3 +295,22 @@ def test_a_lasting_403_fails_after_the_waits(monkeypatch):
     with pytest.raises(ModelError, match="refused again"):
         model.complete("s", "u")
     assert waits == [1, 2]
+
+
+def test_timeout_from_dot_env_reaches_the_client(tmp_path, monkeypatch):
+    # .env is read when a model is created, after the module is imported
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("YANDEX_TIMEOUT", raising=False)
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+    (tmp_path / ".env").write_text("YANDEX_TIMEOUT=180\n")
+    assert YandexModel("aliceai-llm").timeout == 180
+
+
+@pytest.mark.parametrize("value", ["abc", "0", "-5"])
+def test_a_bad_timeout_is_a_clear_error(monkeypatch, value):
+    monkeypatch.setenv("YANDEX_TIMEOUT", value)
+    monkeypatch.setenv("YANDEX_API_KEY", "k")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "f")
+    with pytest.raises(ValueError, match="YANDEX_TIMEOUT must be a positive number"):
+        YandexModel("aliceai-llm")

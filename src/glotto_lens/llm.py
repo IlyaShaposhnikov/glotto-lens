@@ -19,7 +19,7 @@ DEFAULT_MODEL = "aliceai-llm"
 CACHE_DIR = DATA_DIR / "cache" / "llm"
 CACHE_VERSION = 2
 USAGE_LOG = DATA_DIR / "llm_usage.jsonl"
-TIMEOUT_SECONDS = int(os.environ.get("YANDEX_TIMEOUT", "60"))  # reasoning models are slower
+TIMEOUT_SECONDS = 60  # default; YANDEX_TIMEOUT overrides it, reasoning models are slower
 MAX_RETRIES = 2
 # AI Studio sometimes answers 403 for a model the key can use, then serves the same request a
 # little later (seen in long eval runs); the SDK does not retry 403, so these waits do
@@ -48,6 +48,18 @@ class ChatModel(Protocol):
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion: ...
+
+
+def timeout_seconds() -> int:
+    """YANDEX_TIMEOUT from the environment or .env, read when a model is created."""
+    text = os.environ.get("YANDEX_TIMEOUT", str(TIMEOUT_SECONDS))
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value <= 0:
+        raise ValueError(f"YANDEX_TIMEOUT must be a positive number of seconds, not {text!r}")
+    return value
 
 
 def load_env(path: Path = Path(".env")) -> None:
@@ -97,7 +109,8 @@ class YandexModel:
         api: str | None = None,
         reasoning_effort: str | None = None,
     ) -> None:
-        load_env()
+        load_env()  # before reading any setting, so values from .env count
+        self.timeout = timeout_seconds()
         self.api_key = api_key or os.environ.get("YANDEX_API_KEY")
         self.folder_id = folder_id or os.environ.get("YANDEX_FOLDER_ID")
         if not self.api_key or not self.folder_id:
@@ -119,7 +132,7 @@ class YandexModel:
                 api_key=self.api_key,
                 project=self.folder_id,
                 base_url=BASE_URL,
-                timeout=TIMEOUT_SECONDS,
+                timeout=self.timeout,
                 max_retries=MAX_RETRIES,
             )
         return self._client
@@ -149,7 +162,7 @@ class YandexModel:
         if type(error).__name__ in ("APIConnectionError", "APITimeoutError"):
             return ModelError(
                 f"model {self.name!r}: no response ({type(error).__name__}); check the"
-                f" network, or raise YANDEX_TIMEOUT (now {TIMEOUT_SECONDS} s)"
+                f" network, or raise YANDEX_TIMEOUT (now {self.timeout} s)"
             )
         return None
 
