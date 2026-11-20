@@ -374,7 +374,7 @@ def main(argv: list[str] | None = None, embedder: Embedder | None = None) -> Non
     parser.parse_args(argv)
     try:
         embedder = embedder or default_embedder()
-    except RuntimeError as error:
+    except (RuntimeError, ValueError) as error:  # no key, or a bad YANDEX_TIMEOUT
         sys.exit(str(error))
 
     def progress(done: int, total: int) -> None:

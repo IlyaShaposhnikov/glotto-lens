@@ -145,8 +145,10 @@ def main(argv: list[str] | None = None) -> None:
             from glotto_lens import vectors
 
             try:
+                embedder = vectors.default_embedder()
+                vectors.check_ready(conn, embedder.name)  # no silent half-embedded search
                 rank = vectors.hybrid_features if args.hybrid else vectors.vector_features
-                hits = rank(conn, question, args.limit, vectors.default_embedder())
+                hits = rank(conn, question, args.limit, embedder)
             except RuntimeError as error:
                 sys.exit(str(error))
         else:

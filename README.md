@@ -68,7 +68,9 @@ question ─► rewrite (LLM) ─► language name + English query in WALS/Gramb
   name. When a language has no value but its dialect does, the dialect's value is shown
   and labelled as such.
 - **Retrieval.** One search over feature documents, keeping the best document of each
-  feature, picks up to 8 features; the language's values for them become [V] lines.
+  feature, picks up to 8 features; the language's values for them become [V] lines. With
+  `--hybrid`, BM25 keeps the first 6 places and the last 2 go to features found by Yandex
+  embeddings (256 dimensions, stored in the same SQLite file) that BM25 missed.
   The best passages become [T] lines. Chapters that mention the language are added only
   when they describe one of those features.
 - **Prompts.** The rewrite prompt maps everyday wording to database terminology with a
@@ -113,6 +115,15 @@ YANDEX_FOLDER_ID=...
 ```bash
 glotto-lens ask "Сколько падежей в финском языке?"
 glotto-lens ask "Is Yoruba a tone language?" --show-context
+```
+
+Hybrid search embeds the 863 feature documents once (a few minutes, about 230k tokens,
+cached on disk), then adds one embedding call per question:
+
+```bash
+glotto-lens embed
+glotto-lens ask "Does Swahili have noun classes?" --hybrid
+glotto-lens search number of genders noun classes --vectors-only   # the vector channel alone
 ```
 
 `glotto-lens COMMAND --help` lists the options of each command; `python -m glotto_lens.answer`
@@ -173,7 +184,8 @@ same answers and differ only in `metrics_sha256`. The last row was measured at c
 | Baseline: 3 feature documents in the evidence | 33/40 | 26/33 | 4/7 | 0 | [1](eval/reports/1-baseline.json) |
 | Features chosen from a wider pool; "noun classes" example in the rewrite prompt | 39/41 | 31/33 | 5/8 | 0 | [2](eval/reports/2-wider-pool.json) |
 | Same answers, honesty check recognises more phrasings (metric only) | 39/41 | 31/33 | 8/8 | 0 | [3](eval/reports/3-metric-only.json) |
-| Pool counts features, not documents; "noun classes → number of genders" | **40/41** | **31/33** | **8/8** | **0** | [4](eval/reports/4-pool-by-feature.json) |
+| Pool counts features, not documents; "noun classes → number of genders" | 40/41 | 31/33 | 8/8 | 0 | [4](eval/reports/4-pool-by-feature.json) |
+| Hybrid search (`--hybrid`): 2 of 8 places for features only the embeddings find | **41/41** | **33/33** | **8/8** | **0** | [5](eval/reports/5-hybrid.json) |
 
 What the numbers say:
 
@@ -187,6 +199,34 @@ What the numbers say:
   "WALS does not record the number of cases for Hindi" were not recognised before. The
   baseline honesty figure was measured with an earlier version of the check.
 - The set grew from 40 to 41 questions after the baseline (one English no-data question).
+- The last row was measured at commit `12ac20d`, with the judge too: it agreed on all 33
+  values and, as before, rejected `kom-30A` and `abk-GB028` (see "One record per question").
+
+### Hybrid search
+
+BM25 matches words; embeddings compare meanings. The vector channel found WALS 30A first
+for "number of genders noun classes", where BM25 put a dozen Grambank noun class features
+ahead of it. It is weaker on its own: for "number of vowel phonemes" it ranked Grambank's
+number markers and WALS consonant features above WALS 2A, which BM25 puts first. So the
+question was how to fuse the two rankings. Retrieval only, the same rewritten queries:
+
+| Fusion | Tuning set (41) | Held-out set (32) |
+|---|---|---|
+| BM25 alone | 40/41 | 32/32 |
+| Reciprocal rank fusion (RRF, k = 60) | 38/41 | — |
+| Reserved slots: BM25's first 6, then the best 2 vector-only features | **41/41** | **32/32** |
+
+- RRF rewards agreement: a feature both channels rank 3rd to 5th beats the first feature of
+  either one. It lost WALS 2A twice and did not win 30A.
+- Reserved slots cannot push BM25's own choices out and still let in a feature only the
+  vectors find. They won `en-swa-30A` and lost nothing; with answers, `en-swa-30A` became a
+  correct "five or more genders" citing WALS 30A.
+- The gain is one question of 73, and the slots were chosen on the tuning set; the held-out
+  set was used a second time here, for retrieval only. BM25 stays the default, since hybrid
+  search needs `glotto-lens embed` and an API call per question.
+- `rus-117A` also passed in this run. Its evidence changed only in the last two places, and
+  it had passed and failed before with the same features, so it is not counted as a gain
+  of the hybrid search.
 
 ### Results: held-out set
 
@@ -270,13 +310,14 @@ What the numbers say:
   held-out set (32 questions, other languages) has been run once; it is small, and a second
   look at it would no longer be held out.
 - **Small set.** On 33 value questions one answer is 3 percentage points, and answers vary
-  between runs when the evidence changes. In the last row `rus-117A` (possession in
+  between runs when the evidence changes. In the fourth row `rus-117A` (possession in
   Russian) failed because the answer cited the Grambank lines instead of the WALS 117A
   line, though the content was right; a run earlier it passed.
-- **Lexical search.** BM25 matches words, so extra words in the rewritten query can push the
-  right feature out. `en-swa-30A` ("Does Swahili have grammatical gender or noun
-  classes?") is rewritten as "number of genders noun classes", and Grambank's noun class
-  features outrank WALS 30A. Embeddings as a second search channel would address this.
+- **Lexical search by default.** BM25 matches words, so extra words in the rewritten query
+  can push the right feature out (`en-swa-30A`). Hybrid search fixes that case, but it is
+  opt-in, and its embedding model is served only as `text-search-doc/latest`: if Yandex
+  updates it, stored vectors and the cache do not notice. After such an update, delete
+  `data/cache/embeddings` and the `document_vectors` table and run `glotto-lens embed`.
 - **Honesty is a phrase check.** It recognises Russian and English wordings of "no data"
   with a regular expression. It also accepts some claims about the language
   ("род неизвестен"), and it took several corrections to cover the phrasings the models
@@ -309,6 +350,7 @@ src/glotto_lens/
   chapters.py    parse WALS chapter HTML into blocks
   documents.py   searchable documents: chapter chunks, feature cards, distributions
   search.py      FTS5 search with BM25, per-feature mode
+  vectors.py     embeddings in SQLite, vector search, hybrid fusion (reserved slots or RRF)
   languages.py   name normalisation, language lookup, language profiles
   context.py     evidence for a question: features, values, passages, labels
   prompts.py     rewrite and answer prompts
