@@ -149,6 +149,7 @@ glotto-lens eval run --retrieval-only      # nearly free: rewrite and retrieval 
 glotto-lens eval run                       # full run, about 105k input tokens
 glotto-lens eval run --judge --judge-model deepseek-v4.1-flash   # plus an LLM verdict per answer
 glotto-lens eval run -m yandexgpt-5.1 --rewrite-model aliceai-llm  # another answer model, same evidence
+glotto-lens eval run --retrieval-only --hybrid --fusion rrf      # hybrid search, the other fusion
 ```
 
 Every report records what it depends on: the git commit of the code, data releases, hashes
@@ -176,8 +177,8 @@ found (see below).
 Alice AI (`aliceai-llm`), temperature 0. Each row is one change, measured on the full set.
 The reports behind the rows are in [`eval/reports/`](eval/reports): every answer, the
 evidence features and the hashes of prompts, questions and metric. Rows 2 and 3 have the
-same answers and differ only in `metrics_sha256`. The last row was measured at commit
-`10c926e`; reports record the commit from now on, the earlier rows predate that.
+same answers and differ only in `metrics_sha256`. Row 4 was measured at commit `10c926e`,
+row 5 at `12ac20d`; reports record the commit from row 4 on, the earlier rows predate that.
 
 | Stage | Retrieved | Correct | Honest | Invalid citations | Report |
 |---|---|---|---|---|---|
@@ -230,12 +231,13 @@ question was how to fuse the two rankings. Retrieval only, the same rewritten qu
 
 ### Results: held-out set
 
-Alice AI, the settings of the last retrieval row, judge DeepSeek V4.1 Flash; commit
-`c6f6c82`, one run. Nothing was changed after it.
+Alice AI, the settings of retrieval row 4 (BM25), judge DeepSeek V4.1 Flash; commit
+`c6f6c82`, one run with answers. Nothing was tuned on its answers; later the set was used
+once more, for retrieval only, to check the hybrid search (see below).
 
 | Set | Retrieved | Correct | Honest | Invalid citations | Judge: value | Judge: no data | Report |
 |---|---|---|---|---|---|---|---|
-| Tuning set (41 questions, last retrieval row) | 40/41 | 31/33 | 8/8 | 0 | — | — | [4](eval/reports/4-pool-by-feature.json) |
+| Tuning set (41 questions, retrieval row 4) | 40/41 | 31/33 | 8/8 | 0 | — | — | [4](eval/reports/4-pool-by-feature.json) |
 | Held-out set (32 questions) | **32/32** | **23/23** | **6/9** | **0** | 23/23 | 7/9 | [heldout](eval/reports/heldout-aliceai-llm.json) |
 
 What the numbers say:
@@ -305,9 +307,10 @@ What the numbers say:
 
 ## Limitations
 
-- **Tuned on the test set, checked once on a held-out set.** Retrieval settings, the rewrite
+- **Tuned on the test set, checked on a held-out set.** Retrieval settings, the rewrite
   examples and the honesty check were chosen while looking at the 41 tuning questions. The
-  held-out set (32 questions, other languages) has been run once; it is small, and a second
+  held-out set (32 questions, other languages) has been run once with answers and once more
+  for retrieval only, to check the hybrid search; it is small, and a third
   look at it would no longer be held out.
 - **Small set.** On 33 value questions one answer is 3 percentage points, and answers vary
   between runs when the evidence changes. In the fourth row `rus-117A` (possession in
@@ -360,6 +363,7 @@ src/glotto_lens/
   cli.py         the glotto-lens command
 eval/questions.jsonl   the question set
 eval/reports/          the evaluation reports behind the results table
+docs/DATA.md           what the three databases contain, in figures from the build
 tests/                 pytest suite on small synthetic archives, no network or API key
 ```
 
@@ -380,7 +384,8 @@ licenses of those releases (Creative Commons Attribution 4.0 for all three):
 
 If you use answers produced with GlottoLens, cite the databases as their maintainers ask:
 each release lists its recommended citation in its repository and on its website. Every
-answer links to the exact WALS datapoint or Grambank valueset it relies on.
+answer links to the exact WALS datapoint or Grambank valueset it relies on. What each
+database contains, and how it is stored, is in [`docs/DATA.md`](docs/DATA.md).
 
 ## Author
 
