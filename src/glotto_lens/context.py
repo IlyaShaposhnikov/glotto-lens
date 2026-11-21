@@ -41,6 +41,7 @@ MAX_FEATURES = 8
 # An embedder (glotto_lens.vectors) turns on hybrid search for the feature pool: BM25 and
 # embeddings fused with RRF. None: BM25 only.
 EMBEDDER = None
+SETTING = object()  # build_context(embedder=SETTING): use the module's EMBEDDER (the CLI)
 VALUE_URLS = {
     "wals": "https://wals.info/datapoint/{feature}/wals_code_{entry}",
     "grambank": "https://grambank.clld.org/valuesets/{feature}-{entry}",
@@ -127,15 +128,26 @@ def pool_size() -> int:
     return max(MAX_FEATURES, FEATURE_TEXT_LIMIT)
 
 
-def build_context(conn: sqlite3.Connection, question: str, language: str | None = None) -> Context:
-    """Collect texts for the question and, if a language is given, its values."""
+def build_context(
+    conn: sqlite3.Connection,
+    question: str,
+    language: str | None = None,
+    embedder=SETTING,
+) -> Context:
+    """Collect texts for the question and, if a language is given, its values.
+
+    embedder: an embedder for hybrid search, None for BM25 only, or by default the module
+    setting EMBEDDER. Library callers pass it, so concurrent calls never share state.
+    """
+    if embedder is SETTING:
+        embedder = EMBEDDER
     context = Context(question, language)
     candidates = find_languages(conn, language) if language else []
     if candidates:
         context.languoid, *context.other_candidates = candidates
     glottocode = context.languoid.glottocode if context.languoid else None
 
-    if EMBEDDER is not None:
+    if embedder is not None:
         from glotto_lens.vectors import hybrid_features  # numpy only when it is used
 
         # Fused scores (about 1/60) cannot be sorted together with BM25 scores (units to
@@ -143,7 +155,7 @@ def build_context(conn: sqlite3.Connection, question: str, language: str | None 
         # chapter texts: its BM25-ranked feature documents would bring back the order the
         # hybrid pool is there to correct.
         general = search(conn, question, TEXT_LIMIT, kind="chapter")
-        pool = hybrid_features(conn, question, pool_size(), EMBEDDER)
+        pool = hybrid_features(conn, question, pool_size(), embedder)
         features = related_features(conn, [*pool, *general])
     else:
         general = search(conn, question, TEXT_LIMIT)

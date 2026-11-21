@@ -6,14 +6,15 @@ GlottoLens answers from three open databases of linguistic typology, the field t
 the grammars and sound systems of the world's languages. They are published as
 [CLDF](https://cldf.clld.org) datasets: CSV tables with a common structure (languages,
 parameters, codes, values) and an explicit link from every value to its source. All
-figures below are counted in the database GlottoLens builds from the pinned releases.
+figures below are counted in the database GlottoLens builds from the pinned releases, at
+commit `23c957e`; the document counts also depend on how GlottoLens splits the texts.
 
 | | Glottolog v5.4 | WALS v2020.6 | Grambank v1.0.3 |
 |---|---|---|---|
 | What it is | catalogue and family tree of languages | atlas of language structures | questionnaire of grammatical features |
 | Unit | languoid: language, dialect or family | feature with a few categories (6 on average) | yes/no question (some with a few values) |
-| Features | 8 descriptive parameters | 192 | 195 |
-| Languages with values | 27,275 languoids | 2,660 | 2,467 |
+| Features | 8 catalogue parameters (not typological) | 192 | 195 |
+| Languoids or languages with values | 27,275 languoids (all levels) | 2,660 | 2,467 |
 | Values | 181,251 | 76,475 | 441,663 |
 | Filled cells | — | 15% of languages × features | 92%, of which 18% coded "?" |
 | Text | — | 151 chapters with maps and references | a description and coding procedure for each feature |
@@ -26,8 +27,10 @@ languages, 13,773 dialects and 4,879 families and subgroups; 7,861 languages als
 ISO 639-3 code. By macroarea, Africa (2,374 languages), Papunesia (2,225) and Eurasia
 (2,029) together hold three quarters of them.
 
-GlottoLens uses Glottolog for one job: turning "русский", "Basque" or `nucl1643` into a
-glottocode. Besides the main name it keeps the names other catalogues use (Multitree,
+GlottoLens uses Glottolog mainly to turn "русский", "Basque" or `nucl1643` into a
+glottocode, and also for the family, the macroarea, the endangerment status and the most
+extensive description shown with every answer, and to find a dialect's value when the
+language has none. Besides the main name it keeps the names other catalogues use (Multitree,
 Lexvo, ELCat, AIATSIS, WALS and others, over 120,000 names in all), so the same language is
 found under different spellings. The glottocode is the join key between the three sources.
 

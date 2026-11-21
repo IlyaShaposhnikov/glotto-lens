@@ -126,6 +126,21 @@ glotto-lens ask "Does Swahili have noun classes?" --hybrid
 glotto-lens search number of genders noun classes --vectors-only   # только векторный канал
 ```
 
+Тот же конвейер доступен как компоненты LangChain (`pip install -e ".[langchain]"`):
+`BaseRetriever`, который возвращает доказательства как `Document` с метками и ссылками, и
+цепочка LCEL: переписывание → поиск → ответ → проверка ссылок. Цепочка принимает модель
+GlottoLens или любую чат-модель LangChain; с той же моделью она дает тот же ответ, что
+`glotto-lens ask`, и это проверяет тест.
+
+```python
+from glotto_lens.langchain_adapter import GlottoLensRetriever, build_chain
+from glotto_lens.llm import CachedModel, YandexModel
+
+docs = GlottoLensRetriever(language="Finnish").invoke("number of cases")
+result = build_chain(CachedModel(YandexModel())).invoke({"question": "Сколько падежей в финском?"})
+print(result["answer"], result["sources"])
+```
+
 `glotto-lens КОМАНДА --help` показывает параметры каждой команды; `python -m glotto_lens.answer`
 и другие модули работают так же. Данные, кеш и отчеты хранятся в `data/` (или в каталоге из
 `GLOTTO_LENS_DATA`).
@@ -266,7 +281,7 @@ Grambank и признаки WALS о согласных выше WALS 2A, кот
 ### Результаты: модели-ответчики
 
 Пять моделей из каталога Yandex AI Studio отвечают на те же 41 вопрос по тем же
-доказательствам: все вопросы переписывает Алиса AI (`--rewrite-model aliceai-llm`), так что
+доказательствам поиска BM25 (строка 4 по поиску): все вопросы переписывает Алиса AI (`--rewrite-model aliceai-llm`), так что
 различается только ответ. Температура 0, у DeepSeek и Qwen рассуждение выключено
 (`--reasoning-effort none`), судья — DeepSeek V4.1 Flash. Коммит `e5a211b`.
 
@@ -292,7 +307,7 @@ Grambank и признаки WALS о согласных выше WALS 2A, кот
 - **Ошибки — в ссылках, а не в знаниях.** Алиса и Alice Flash на `rus-117A` ссылаются на
   строки Grambank вместо WALS 117A. Qwen на `bsq-37A` пишет «(V1)» без квадратных скобок, а на
   `geo-1A` ссылается на метку, которой нет в доказательствах. YandexGPT на `kom-30A` пишет,
-  что рода в коми нет, хотя значения в WALS нет; это единственный нечестный ответ.
+  что рода в коми нет, хотя значения в WALS нет; это единственный ответ, который проверка формулировки считает нечестным.
 - **DeepSeek и Qwen пишут втрое длиннее** при тех же оценках, даже без рассуждения.
 - **Рассуждение здесь не помогает.** С рассуждением по умолчанию DeepSeek получает ровно те же
   вердикты по всем 41 вопросу, и от проверок, и от судьи, а выходных токенов тратит в 2,5 раза
@@ -356,6 +371,7 @@ src/glotto_lens/
   documents.py   документы для поиска: фрагменты глав, карточки признаков, распределения
   search.py      поиск FTS5 с BM25, режим «один документ на признак»
   vectors.py     эмбеддинги в SQLite, векторный поиск, гибридное слияние (места или RRF)
+  langchain_adapter.py  конвейер как ретривер и цепочка LCEL LangChain (необязательно)
   languages.py   нормализация названий, поиск языка, профили языков
   context.py     доказательства для вопроса: признаки, значения, фрагменты, метки
   prompts.py     промпты переписывания и ответа
@@ -364,6 +380,7 @@ src/glotto_lens/
   evaluate.py    проверка набора вопросов, метрики, отчеты
   cli.py         команда glotto-lens
 eval/questions.jsonl   набор вопросов
+eval/heldout.jsonl     отложенный набор вопросов
 eval/reports/          отчеты оценки, на которых построена таблица результатов
 docs/DATA.ru.md        что содержат три базы, в цифрах из сборки
 tests/                 тесты pytest на небольших синтетических архивах, без сети и API-ключа

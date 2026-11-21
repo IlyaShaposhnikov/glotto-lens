@@ -126,6 +126,21 @@ glotto-lens ask "Does Swahili have noun classes?" --hybrid
 glotto-lens search number of genders noun classes --vectors-only   # the vector channel alone
 ```
 
+The same pipeline is available as LangChain components (`pip install -e ".[langchain]"`):
+a `BaseRetriever` that returns the evidence as `Document`s with labels and URLs, and an
+LCEL chain, rewrite → retrieve → answer → citation check. The chain takes a GlottoLens model
+or any LangChain chat model; with the same model it gives the same answer as
+`glotto-lens ask`, which a test checks.
+
+```python
+from glotto_lens.langchain_adapter import GlottoLensRetriever, build_chain
+from glotto_lens.llm import CachedModel, YandexModel
+
+docs = GlottoLensRetriever(language="Finnish").invoke("number of cases")
+result = build_chain(CachedModel(YandexModel())).invoke({"question": "Сколько падежей в финском?"})
+print(result["answer"], result["sources"])
+```
+
 `glotto-lens COMMAND --help` lists the options of each command; `python -m glotto_lens.answer`
 and the other modules work the same way. Data, the cache and reports live in `data/` (or in
 `GLOTTO_LENS_DATA`).
@@ -258,13 +273,13 @@ What the numbers say:
     "т. д." ends its sentence window.
 - The 8/8 honesty of the tuning set was partly tuned: the phrase check grew on its answers.
   On new questions a reasonable reading is 7–8 of 9, and the check alone gives 6.
-- Neither miss was fixed here: changing the metric or the item after the run would make
+- None of the three misses was fixed here: changing the metric or the item after the run would make
   this row a tuning row.
 
 ### Results: answer models
 
 Five models from the Yandex AI Studio catalogue answer the same 41 questions on the same
-evidence: Alice AI rewrites every question (`--rewrite-model aliceai-llm`), so only the
+BM25 evidence (retrieval row 4): Alice AI rewrites every question (`--rewrite-model aliceai-llm`), so only the
 answer differs. Temperature 0, reasoning off for DeepSeek and Qwen
 (`--reasoning-effort none`), judge DeepSeek V4.1 Flash. Commit `e5a211b`.
 
@@ -290,7 +305,7 @@ What the numbers say:
 - **The misses are about citing, not knowing.** Alice and Alice Flash cite the Grambank
   lines instead of WALS 117A on `rus-117A`. Qwen writes "(V1)" without brackets on
   `bsq-37A` and cites a label that is not in the evidence on `geo-1A`. YandexGPT on `kom-30A`
-  says Komi has no gender, where WALS has no value; it is the only dishonest answer.
+  says Komi has no gender, where WALS has no value; it is the only answer the phrase check counts as dishonest.
 - **DeepSeek and Qwen write three times as much** for the same scores, even with reasoning
   off.
 - **Reasoning does not help here.** With its default reasoning DeepSeek gets exactly the same
@@ -354,6 +369,7 @@ src/glotto_lens/
   documents.py   searchable documents: chapter chunks, feature cards, distributions
   search.py      FTS5 search with BM25, per-feature mode
   vectors.py     embeddings in SQLite, vector search, hybrid fusion (reserved slots or RRF)
+  langchain_adapter.py  the pipeline as a LangChain retriever and LCEL chain (optional)
   languages.py   name normalisation, language lookup, language profiles
   context.py     evidence for a question: features, values, passages, labels
   prompts.py     rewrite and answer prompts
@@ -362,6 +378,7 @@ src/glotto_lens/
   evaluate.py    question set checks, metrics, reports
   cli.py         the glotto-lens command
 eval/questions.jsonl   the question set
+eval/heldout.jsonl     the held-out question set
 eval/reports/          the evaluation reports behind the results table
 docs/DATA.md           what the three databases contain, in figures from the build
 tests/                 pytest suite on small synthetic archives, no network or API key

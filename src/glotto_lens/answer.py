@@ -32,6 +32,11 @@ LABEL = re.compile(r"[VT]\s?\d+", re.IGNORECASE)
 NO_LANGUAGE = frozenset({"null", "none", "unknown", "n/a", "na", "-", "нет"})
 
 
+# part of every cache key: the LangChain chain uses the same limits to share the cache
+REWRITE_MAX_TOKENS = 200
+ANSWER_MAX_TOKENS = 1000
+
+
 @dataclass(frozen=True)
 class Rewrite:
     language: str | None
@@ -125,7 +130,9 @@ def retrieve(
     """Steps 1 and 2: rewrite the question and collect the evidence for it."""
     safe_question = prompts.escape_tags(question)
     rewrite_call = model.complete(
-        prompts.REWRITE_SYSTEM, prompts.REWRITE_USER.format(question=safe_question), max_tokens=200
+        prompts.REWRITE_SYSTEM,
+        prompts.REWRITE_USER.format(question=safe_question),
+        max_tokens=REWRITE_MAX_TOKENS,
     )
     rewrite = parse_rewrite(rewrite_call.text, question)
     if language:
@@ -151,7 +158,7 @@ def answer_question(
     answer_call = model.complete(
         prompts.ANSWER_SYSTEM,
         prompts.ANSWER_USER.format(question=safe_question, evidence=evidence),
-        max_tokens=1000,
+        max_tokens=ANSWER_MAX_TOKENS,
     )
     cited, invalid = check_citations(answer_call.text, context)
     text = mark_invalid(answer_call.text, invalid)
