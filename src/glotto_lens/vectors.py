@@ -103,6 +103,12 @@ class YandexEmbedder:
             )
         return self._client
 
+    def close(self) -> None:
+        """Close the HTTP client, if one was opened; the next call opens a new one."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     def embed(self, texts: list[str], kind: str) -> list[list[float]]:
         model = f"emb://{self.folder_id}/{DOC_MODEL if kind == 'doc' else QUERY_MODEL}"
         try:
@@ -140,6 +146,11 @@ class CachedEmbedder:
     def _path(self, text: str, kind: str) -> Path:
         key = json.dumps([CACHE_VERSION, self.name, kind, text], ensure_ascii=False)
         return self.cache_dir / f"{hashlib.sha256(key.encode('utf-8')).hexdigest()}.json"
+
+    def close(self) -> None:
+        close = getattr(self.embedder, "close", None)
+        if close is not None:
+            close()
 
     def embed(self, texts: list[str], kind: str) -> list[list[float]]:
         vectors: list[list[float] | None] = []

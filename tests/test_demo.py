@@ -143,29 +143,102 @@ def test_the_embedder_takes_the_visitors_key(monkeypatch, tmp_path):
     assert (embedder.api_key, embedder.folder_id) == ("key", "folder")
 
 
-def _gzipped(source, tmp_path):
+def _asset(source, tmp_path, name="glottolens.sqlite.gz", packed=True):
     import gzip
     import hashlib
 
-    packed = tmp_path / "asset" / "glottolens.sqlite.gz"
-    packed.parent.mkdir()
-    packed.write_bytes(gzip.compress(source.read_bytes()))
-    return packed, hashlib.sha256(packed.read_bytes()).hexdigest()
+    asset = tmp_path / "asset" / name
+    asset.parent.mkdir(exist_ok=True)
+    data = source.read_bytes()
+    asset.write_bytes(gzip.compress(data) if packed else data)
+    return asset, hashlib.sha256(asset.read_bytes()).hexdigest()
+
+
+def _documents(path):
+    with closing(sqlite3.connect(path)) as connection:
+        return connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
 
 
 def test_the_database_is_downloaded_once_and_checked(db_path, tmp_path):
-    packed, digest = _gzipped(db_path, tmp_path)
+    asset, digest = _asset(db_path, tmp_path)
     target = tmp_path / "data" / "glottolens.sqlite"
-    assert demo.fetch_database(packed.as_uri(), digest, target) == target
-    with closing(sqlite3.connect(target)) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0] > 0
-    packed.unlink()  # a second call does not download again
-    assert demo.fetch_database(packed.as_uri(), digest, target) == target
+    assert demo.fetch_database(asset.as_uri(), digest, target) == target
+    assert _documents(target) > 0
+    asset.unlink()  # the same hash is not downloaded again
+    assert demo.fetch_database(asset.as_uri(), digest, target) == target
 
 
-def test_a_wrong_download_leaves_nothing_behind(db_path, tmp_path):
-    packed, _ = _gzipped(db_path, tmp_path)
+def test_a_new_asset_replaces_the_old_database(db_path, tmp_path):
+    target = tmp_path / "data" / "glottolens.sqlite"
+    asset, digest = _asset(db_path, tmp_path)
+    demo.fetch_database(asset.as_uri(), digest, target)
+    newer = tmp_path / "newer.sqlite"
+    newer.write_bytes(db_path.read_bytes())
+    with closing(sqlite3.connect(newer)) as connection:
+        connection.execute("DELETE FROM documents WHERE id = (SELECT MIN(id) FROM documents)")
+        connection.commit()
+    before = _documents(target)
+    asset, new_digest = _asset(newer, tmp_path, "v2.sqlite.gz")
+    demo.fetch_database(asset.as_uri(), new_digest, target)
+    assert _documents(target) == before - 1
+    assert (target.parent / "glottolens.sqlite.sha256").read_text() == new_digest
+
+
+def test_gzip_is_recognised_by_content_not_by_name(db_path, tmp_path):
+    asset, digest = _asset(db_path, tmp_path, "db-latest", packed=True)
+    plain, plain_digest = _asset(db_path, tmp_path, "plain.sqlite.gz", packed=False)
+    demo.fetch_database(asset.as_uri(), digest, tmp_path / "a" / "glottolens.sqlite")
+    demo.fetch_database(plain.as_uri(), plain_digest, tmp_path / "b" / "glottolens.sqlite")
+    assert _documents(tmp_path / "a" / "glottolens.sqlite") > 0
+    assert _documents(tmp_path / "b" / "glottolens.sqlite") > 0
+
+
+@pytest.mark.parametrize("digest", ["", "z" * 64, "0" * 64])
+def test_a_missing_or_wrong_hash_leaves_nothing_behind(db_path, tmp_path, digest):
+    asset, _ = _asset(db_path, tmp_path)
     target = tmp_path / "data" / "glottolens.sqlite"
     with pytest.raises(ValueError, match="SHA-256"):
-        demo.fetch_database(packed.as_uri(), "0" * 64, target)
+        demo.fetch_database(asset.as_uri(), digest, target)
+    assert not target.parent.exists() or list(target.parent.iterdir()) == []
+
+
+def test_an_oversized_download_stops(db_path, tmp_path, monkeypatch):
+    asset, digest = _asset(db_path, tmp_path)
+    monkeypatch.setattr(demo, "MAX_DOWNLOAD", 10)
+    target = tmp_path / "data" / "glottolens.sqlite"
+    with pytest.raises(ValueError, match="over"):
+        demo.fetch_database(asset.as_uri(), digest, target)
     assert list(target.parent.iterdir()) == []
+
+
+def test_a_database_from_another_build_is_refused(db_path, tmp_path):
+    older = tmp_path / "older.sqlite"
+    older.write_bytes(db_path.read_bytes())
+    with closing(sqlite3.connect(older)) as connection:
+        connection.execute("DROP TABLE languoid_facts")
+        connection.commit()
+    asset, digest = _asset(older, tmp_path)
+    target = tmp_path / "data" / "glottolens.sqlite"
+    with pytest.raises(ValueError, match="languoid_facts"):
+        demo.fetch_database(asset.as_uri(), digest, target)
+    assert not target.exists()
+
+
+def test_per_request_clients_are_closed():
+    from glotto_lens.llm import CachedModel, YandexModel
+    from glotto_lens.vectors import CachedEmbedder, YandexEmbedder
+
+    class Client:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    for inner, wrapper in (
+        (YandexModel("m", api_key="k", folder_id="f"), CachedModel),
+        (YandexEmbedder(api_key="k", folder_id="f"), CachedEmbedder),
+    ):
+        client = inner._client = Client()
+        wrapper(inner).close()
+        assert client.closed and inner._client is None
+        inner.close()  # nothing open: no error

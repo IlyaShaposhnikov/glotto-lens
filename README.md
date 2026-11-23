@@ -8,6 +8,8 @@
 [![Data](https://img.shields.io/badge/Data-Grambank%20%C2%B7%20WALS%20%C2%B7%20Glottolog-orange)](#data-and-licenses)
 [![LLM](https://img.shields.io/badge/LLM-Alice%20AI-purple)](https://yandex.cloud/en/services/ai-studio)
 
+**Live demo: [glotto-lens.streamlit.app](https://glotto-lens.streamlit.app/)** (answers need your own Yandex AI Studio key; the evidence tab works without one)
+
 Ask a question about the grammar of a language, in Russian or English, and get a short
 answer in which every statement points to a record in a typological database:
 
@@ -126,8 +128,9 @@ glotto-lens ask "Does Swahili have noun classes?" --hybrid
 glotto-lens search number of genders noun classes --vectors-only   # the vector channel alone
 ```
 
-A web demo shows the answer with clickable citations and the evidence behind it; without
-an API key it still shows the evidence for an English search query:
+A web demo, live at **[glotto-lens.streamlit.app](https://glotto-lens.streamlit.app/)**,
+shows the answer with clickable citations and the evidence behind it. Answers need your own
+Yandex AI Studio key; the evidence tab works without one. To run it locally:
 
 ```bash
 pip install -e ".[demo]"
@@ -135,20 +138,28 @@ streamlit run streamlit_app.py
 ```
 
 The model's text is shown as plain text: only the labels become links. The hybrid toggle
-embeds the query, so it needs the key even with evidence only. Questions go to
+embeds the query, so it needs a key on the evidence tab too. Questions go to
 `answers.jsonl` like those of `ask`; set `GLOTTO_LENS_LOG=0` when others use the page.
 The demo offers the four models served by the Responses API; Qwen, which needs
 `--api chat`, is left out.
 
 ![The demo: an answer with linked citations above the evidence table](docs/demo.png)
 
-For a public deployment (Streamlit Community Cloud reads `requirements.txt`), three secrets
-are enough: `GLOTTO_LENS_PUBLIC = "1"` makes visitors answer with their own Yandex AI
-Studio key and turns the question log off; `GLOTTO_LENS_DB_URL` and
-`GLOTTO_LENS_DB_SHA256` point to the built database, gzipped as a release asset, which the
-page downloads once on its first start. The asset must be rebuilt when the build code
-changes. Answers are still cached on the server's disk, so a repeated question costs
-nothing.
+For a public deployment on Streamlit Community Cloud (Python 3.12 in the app settings;
+`requirements.txt` pins the tested versions), three secrets are enough:
+
+- `GLOTTO_LENS_PUBLIC = "1"`: visitors answer with their own key, never the server's, and
+  `answers.jsonl` is not written;
+- `GLOTTO_LENS_DB_URL`: the built database, gzipped (`gzip -k -9 data/glottolens.sqlite`)
+  and attached to a GitHub release;
+- `GLOTTO_LENS_DB_SHA256`: the hash of the `.gz` file itself (`sha256sum
+  data/glottolens.sqlite.gz`). The page downloads the asset on its first start and
+  downloads it again whenever the hash changes, so a rebuilt database needs only a new
+  asset and a new hash.
+
+Even in public mode the server keeps the model cache (`data/cache/llm`: prompts are hashed,
+answer texts are stored) and the token log (`llm_usage.jsonl`: time and token counts), so
+a repeated question costs nothing. Visitors' keys are never written anywhere.
 
 The same pipeline is available as LangChain components (`pip install -e ".[langchain]"`):
 a `BaseRetriever` that returns the evidence as `Document`s with labels and URLs, and an

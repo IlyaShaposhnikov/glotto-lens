@@ -31,11 +31,11 @@ MODELS = {
 }
 NO_REASONING = {"deepseek-v4.1-flash"}  # answered with reasoning off in the comparison
 EXAMPLES = [
-    "Сколько падежей в финском языке?",
-    "Есть ли тоны в языке йоруба?",
+    "How many cases does Finnish have?",
+    "Is Yoruba a tone language?",
     "Does Swahili have grammatical gender or noun classes?",
-    "Какой базовый порядок слов в ирландском?",
-    "Есть ли в баскском определенный артикль?",
+    "What is the basic word order of Irish?",
+    "Does Basque have a definite article?",
 ]
 # Markdown that could add a link, an image or a raw URL of the model's choosing; the
 # remaining marks (*, _, -, #) only format, so lists and emphasis still render.
@@ -71,37 +71,60 @@ def credentials(api_key: str = "", folder_id: str = "") -> tuple[str, str] | Non
     return (api_key, folder_id) if api_key and folder_id else None
 
 
-def fetch_database(url: str, sha256: str | None = None, target: Path | None = None) -> Path:
-    """Download the built database once (a .gz release asset or a plain file).
+MAX_DOWNLOAD = 2 * 1024**3  # 2 GiB: a wrong URL cannot fill the disk of a small host
+TABLES = re.compile(r"CREATE (?:VIRTUAL )?TABLE (\w+)")
 
-    sha256 is checked against the downloaded file; a damaged or wrong file never replaces
-    the target, and partial files are removed.
+
+def fetch_database(url: str, sha256: str, target: Path | None = None) -> Path:
+    """Download the built database (a gzipped release asset or a plain file).
+
+    sha256 is that of the downloaded file, as `sha256sum glottolens.sqlite.gz` prints it.
+    It is required, and it is kept next to the database: a new asset with a new hash
+    replaces the old database, the same hash is not downloaded again. A wrong, cut or
+    outdated file never replaces the target, and partial files are removed.
     """
+    from glotto_lens.database import SCHEMA
+
+    sha256 = (sha256 or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", sha256):
+        raise ValueError("Set GLOTTO_LENS_DB_SHA256 to the SHA-256 of the database asset")
     target = Path(target or sources.DB_PATH)
-    if target.exists():
+    stamp = target.with_name(target.name + ".sha256")
+    if target.exists() and stamp.exists() and stamp.read_text().strip() == sha256:
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
     download = target.with_name(target.name + ".download")
     partial = target.with_name(target.name + ".part")
     try:
-        digest = hashlib.sha256()
+        digest, size = hashlib.sha256(), 0
         request = Request(url, headers={"User-Agent": sources.USER_AGENT})
         with urlopen(request, timeout=300) as response, download.open("wb") as out:
             while chunk := response.read(1 << 20):
+                size += len(chunk)
+                if size > MAX_DOWNLOAD:
+                    raise ValueError(f"The database download is over {MAX_DOWNLOAD} bytes")
                 digest.update(chunk)
                 out.write(chunk)
-        if sha256 and digest.hexdigest() != sha256.strip().lower():
-            raise ValueError(f"Database download from {url} has a different SHA-256")
-        if url.endswith(".gz"):
+        if digest.hexdigest() != sha256:
+            raise ValueError(f"The download from {url} has a different SHA-256")
+        with download.open("rb") as head:
+            gzipped = head.read(2) == b"\x1f\x8b"  # by content: a URL may hide its suffix
+        if gzipped:
             with gzip.open(download, "rb") as source, partial.open("wb") as out:
                 shutil.copyfileobj(source, out, 1 << 20)
             download.unlink()
         else:
             download.replace(partial)
         with closing(sources.read_only(partial)) as conn:
+            present = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
+            missing = set(TABLES.findall(SCHEMA)) - present
+            if missing:
+                tables = ", ".join(sorted(missing))
+                raise ValueError(f"The downloaded database is from another build: no {tables}")
             if not conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]:
                 raise ValueError("The downloaded database has no documents")
         partial.replace(target)
+        stamp.write_text(sha256)
     except BaseException:
         download.unlink(missing_ok=True)
         partial.unlink(missing_ok=True)

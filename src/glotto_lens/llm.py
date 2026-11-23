@@ -137,6 +137,12 @@ class YandexModel:
             )
         return self._client
 
+    def close(self) -> None:
+        """Close the HTTP client, if one was opened; the next call opens a new one."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
     ) -> Completion:
@@ -279,6 +285,11 @@ class CachedModel:
             return Completion(**{**data, "cached": True})
         except (OSError, ValueError, TypeError):
             return None
+
+    def close(self) -> None:
+        close = getattr(self.model, "close", None)
+        if close is not None:
+            close()
 
     def complete(
         self, system: str, user: str, *, temperature: float = 0.0, max_tokens: int = 1500
