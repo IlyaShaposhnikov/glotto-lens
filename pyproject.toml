@@ -27,6 +27,9 @@ dev = [
 langchain = [
     "langchain-core>=0.3",
 ]
+demo = [
+    "streamlit>=1.40",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

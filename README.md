@@ -126,11 +126,20 @@ glotto-lens ask "Does Swahili have noun classes?" --hybrid
 glotto-lens search number of genders noun classes --vectors-only   # the vector channel alone
 ```
 
+A web demo shows the answer with clickable citations and the evidence behind it; without
+an API key it still shows the evidence for an English search query:
+
+```bash
+pip install -e ".[demo]"
+streamlit run streamlit_app.py
+```
+
 The same pipeline is available as LangChain components (`pip install -e ".[langchain]"`):
 a `BaseRetriever` that returns the evidence as `Document`s with labels and URLs, and an
 LCEL chain, rewrite → retrieve → answer → citation check. The chain takes a GlottoLens model
-or any LangChain chat model; with the same model it gives the same answer as
-`glotto-lens ask`, which a test checks.
+or any LangChain chat model; with the same model it sends the same prompts as
+`glotto-lens ask`, which a test checks. Unlike `ask`, it writes no `answers.jsonl` line and
+does not warn when the model stopped early.
 
 ```python
 from glotto_lens.langchain_adapter import GlottoLensRetriever, build_chain
@@ -370,6 +379,8 @@ src/glotto_lens/
   search.py      FTS5 search with BM25, per-feature mode
   vectors.py     embeddings in SQLite, vector search, hybrid fusion (reserved slots or RRF)
   langchain_adapter.py  the pipeline as a LangChain retriever and LCEL chain (optional)
+  demo.py        what the web demo shows, as plain data
+streamlit_app.py       the web demo (optional)
   languages.py   name normalisation, language lookup, language profiles
   context.py     evidence for a question: features, values, passages, labels
   prompts.py     rewrite and answer prompts

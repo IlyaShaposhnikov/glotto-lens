@@ -21,7 +21,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from glotto_lens import prompts
-from glotto_lens.context import Citation, Context, build_context, citations, render_context
+from glotto_lens.context import (
+    SETTING,
+    Citation,
+    Context,
+    build_context,
+    citations,
+    render_context,
+)
 from glotto_lens.documents import RELEASES
 from glotto_lens.llm import APIS, CachedModel, ChatModel, Completion, ModelError, YandexModel
 from glotto_lens.sources import DATA_DIR, DB_PATH
@@ -125,9 +132,14 @@ def mark_invalid(text: str, invalid: list[str]) -> str:
 
 
 def retrieve(
-    conn: sqlite3.Connection, model: ChatModel, question: str, language: str | None = None
+    conn: sqlite3.Connection,
+    model: ChatModel,
+    question: str,
+    language: str | None = None,
+    embedder=SETTING,
 ) -> tuple[Rewrite, Context, Completion]:
-    """Steps 1 and 2: rewrite the question and collect the evidence for it."""
+    """Steps 1 and 2: rewrite the question and collect the evidence for it.
+    embedder: as in build_context (default: the module setting the CLI uses)."""
     safe_question = prompts.escape_tags(question)
     rewrite_call = model.complete(
         prompts.REWRITE_SYSTEM,
@@ -137,7 +149,8 @@ def retrieve(
     rewrite = parse_rewrite(rewrite_call.text, question)
     if language:
         rewrite = Rewrite(language=language, query=rewrite.query, ok=rewrite.ok)
-    return rewrite, build_context(conn, rewrite.query, rewrite.language), rewrite_call
+    context = build_context(conn, rewrite.query, rewrite.language, embedder=embedder)
+    return rewrite, context, rewrite_call
 
 
 def answer_question(
@@ -146,13 +159,16 @@ def answer_question(
     question: str,
     language: str | None = None,
     rewrite_model: ChatModel | None = None,
+    embedder=SETTING,
 ) -> Answer:
     """Run the whole pipeline; an explicit language overrides the one the model finds.
 
     rewrite_model (default: model) does step 1. Keeping it fixed while the answer model
     changes gives every model the same evidence, so their answers can be compared.
     """
-    rewrite, context, rewrite_call = retrieve(conn, rewrite_model or model, question, language)
+    rewrite, context, rewrite_call = retrieve(
+        conn, rewrite_model or model, question, language, embedder
+    )
     safe_question = prompts.escape_tags(question)
     evidence = prompts.escape_tags(render_context(context))
     answer_call = model.complete(

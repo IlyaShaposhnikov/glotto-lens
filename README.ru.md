@@ -126,11 +126,20 @@ glotto-lens ask "Does Swahili have noun classes?" --hybrid
 glotto-lens search number of genders noun classes --vectors-only   # только векторный канал
 ```
 
+Веб-демо показывает ответ с кликабельными ссылками и доказательства, на которые он опирается;
+без ключа API оно все равно показывает доказательства для английского поискового запроса:
+
+```bash
+pip install -e ".[demo]"
+streamlit run streamlit_app.py
+```
+
 Тот же конвейер доступен как компоненты LangChain (`pip install -e ".[langchain]"`):
 `BaseRetriever`, который возвращает доказательства как `Document` с метками и ссылками, и
 цепочка LCEL: переписывание → поиск → ответ → проверка ссылок. Цепочка принимает модель
-GlottoLens или любую чат-модель LangChain; с той же моделью она дает тот же ответ, что
-`glotto-lens ask`, и это проверяет тест.
+GlottoLens или любую чат-модель LangChain; с той же моделью она отправляет те же промпты, что
+`glotto-lens ask`, и это проверяет тест. В отличие от `ask`, она не пишет строку в
+`answers.jsonl` и не предупреждает, если модель оборвала ответ.
 
 ```python
 from glotto_lens.langchain_adapter import GlottoLensRetriever, build_chain
@@ -372,6 +381,8 @@ src/glotto_lens/
   search.py      поиск FTS5 с BM25, режим «один документ на признак»
   vectors.py     эмбеддинги в SQLite, векторный поиск, гибридное слияние (места или RRF)
   langchain_adapter.py  конвейер как ретривер и цепочка LCEL LangChain (необязательно)
+  demo.py        что показывает веб-демо, в виде простых данных
+streamlit_app.py       веб-демо (необязательно)
   languages.py   нормализация названий, поиск языка, профили языков
   context.py     доказательства для вопроса: признаки, значения, фрагменты, метки
   prompts.py     промпты переписывания и ответа

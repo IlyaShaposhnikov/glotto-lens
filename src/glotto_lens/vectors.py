@@ -23,6 +23,7 @@ Two ways to fuse the rankings of features (FUSION):
 """
 
 import argparse
+import functools
 import hashlib
 import json
 import os
@@ -363,7 +364,9 @@ def check_ready(conn: sqlite3.Connection, model: str) -> None:
         )
 
 
+@functools.lru_cache(maxsize=1)
 def default_embedder() -> CachedEmbedder:
+    """One embedder per process: one HTTP client, one .env read, running token counts."""
     return CachedEmbedder(YandexEmbedder())
 
 

@@ -64,6 +64,7 @@ def context_documents(context: Context) -> list[Document]:
                 "label": citation.label,
                 "kind": "value",
                 "url": citation.url,
+                "urls": [citation.url],
                 "feature_id": citation.feature_id,
                 "value": citation.value,
                 "known": citation.known,
@@ -179,6 +180,11 @@ def build_chain(
     query and language, the context, the answer text (invented labels marked with "?"),
     the cited sources and the invalid labels.
     """
+    if hybrid:  # fail now, before the chain pays for a rewrite
+        from glotto_lens.vectors import check_ready, default_embedder
+
+        with closing(sqlite3.connect(db_path or sources.DB_PATH)) as conn:
+            check_ready(conn, default_embedder().name)
     to_text = StrOutputParser()
     answer_llm = _runnable(llm, ANSWER_MAX_TOKENS)
     rewrite_llm = _runnable(rewrite_llm or llm, REWRITE_MAX_TOKENS)

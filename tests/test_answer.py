@@ -158,3 +158,12 @@ def test_cut_rewrite_does_not_mark_a_finished_answer_as_cut(conn):
 
     result = answer_question(conn, CutRewrite('{"query": "feature"}', "Ответ [T1]."), "q")
     assert result.complete
+
+
+def test_the_search_mode_can_be_chosen_per_call(conn, monkeypatch):
+    # embedder=None means BM25 even when the CLI setting asks for hybrid search
+    from glotto_lens import context
+
+    monkeypatch.setattr(context, "EMBEDDER", object())  # would fail if it were read
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    assert answer_question(conn, model, "q", embedder=None).cited
