@@ -3,8 +3,13 @@
 Needs the database (glotto-lens build). Answers need YANDEX_API_KEY and YANDEX_FOLDER_ID
 in .env; without them the page still shows the evidence for an English search query.
 Questions are logged to answers.jsonl unless GLOTTO_LENS_LOG=0.
+
+Public deployment (Streamlit secrets become environment variables):
+GLOTTO_LENS_PUBLIC=1 makes visitors answer with their own key and logs nothing;
+GLOTTO_LENS_DB_URL and GLOTTO_LENS_DB_SHA256 download the built database on first start.
 """
 
+import os
 import sqlite3
 from contextlib import closing
 
@@ -16,19 +21,36 @@ from glotto_lens.context import build_context
 from glotto_lens.llm import CachedModel, ModelError, YandexModel
 
 st.set_page_config(page_title="GlottoLens", page_icon="🔎", layout="wide")
+try:  # root-level secrets as environment variables, whether or not Streamlit set them yet
+    for secret_name, secret_value in st.secrets.items():
+        if isinstance(secret_value, str):
+            os.environ.setdefault(secret_name, secret_value)
+except Exception:  # noqa: BLE001, S110 - no secrets file when run locally
+    pass
+ERRORS = (ModelError, RuntimeError, ValueError)  # ValueError: e.g. a bad YANDEX_TIMEOUT
 
 
-@st.cache_resource
-def model(name: str):
+@st.cache_resource(show_spinner="Downloading the database (first start only)...")
+def database_ready() -> bool:
+    url = os.environ.get("GLOTTO_LENS_DB_URL")
+    if url and not sources.DB_PATH.exists():
+        demo.fetch_database(url, os.environ.get("GLOTTO_LENS_DB_SHA256"))
+    return sources.DB_PATH.exists()
+
+
+# Built per request, never cached across sessions: they hold the visitor's key.
+def model(name: str, key: tuple[str, str]):
     effort = "none" if name in demo.NO_REASONING else None
-    return CachedModel(YandexModel(name, reasoning_effort=effort))
+    api_key, folder_id = key
+    return CachedModel(
+        YandexModel(name, api_key=api_key, folder_id=folder_id, reasoning_effort=effort)
+    )
 
 
-@st.cache_resource
-def embedder():
-    from glotto_lens.vectors import default_embedder
+def embedder(key: tuple[str, str]):
+    from glotto_lens.vectors import CachedEmbedder, YandexEmbedder
 
-    return default_embedder()
+    return CachedEmbedder(YandexEmbedder(*key))
 
 
 def show_evidence(context) -> None:
@@ -51,7 +73,12 @@ def show_evidence(context) -> None:
                 st.markdown(f"[{item['url']}]({item['url']})")
 
 
-if not sources.DB_PATH.exists():
+try:
+    ready_db = database_ready()
+except Exception as error:  # noqa: BLE001 - show why the download failed
+    st.error(f"The database could not be downloaded: {error}")
+    st.stop()
+if not ready_db:
     st.error("No database yet: run `glotto-lens build` first.")
     st.stop()
 
@@ -63,14 +90,22 @@ with st.sidebar:
         help="Evidence only searches with an English query and calls no model.",
     )
     name = st.selectbox("Answer model", list(demo.MODELS), format_func=demo.MODELS.get)
+    with st.expander("Your Yandex AI Studio key", expanded=demo.is_public()):
+        api_key = st.text_input("API key", type="password")
+        folder_id = st.text_input("Folder ID")
+        st.caption(
+            "Used only for this session's requests to Yandex AI Studio and never stored."
+            + ("" if demo.is_public() else " Empty: the key from .env is used.")
+        )
+    key = demo.credentials(api_key, folder_id)
     ready = demo.hybrid_ready()
     hybrid = st.toggle(
         "Hybrid search (BM25 + embeddings)",
         value=False,
-        disabled=not ready,
+        disabled=not ready or key is None,
         help="Run `glotto-lens embed` once to enable."
         if not ready
-        else "Embeds the query: one extra API call, so it needs the key in both modes.",
+        else "Embeds the query: one extra API call, so it needs a key in both modes.",
     )
     language = st.text_input("Language (optional)", help="Overrides the language in the question.")
     st.markdown(
@@ -89,7 +124,9 @@ if mode.startswith("Answer"):
     question = st.text_input(
         "Question", value="" if example == "—" else example, placeholder=demo.EXAMPLES[0]
     )
-    if st.button("Ask", type="primary", disabled=not question.strip()):
+    if key is None:
+        st.info("Enter your Yandex AI Studio API key and folder ID in the sidebar to ask.")
+    if st.button("Ask", type="primary", disabled=not question.strip() or key is None):
         try:
             with (
                 st.spinner("Searching and answering..."),
@@ -97,14 +134,14 @@ if mode.startswith("Answer"):
             ):
                 answer = answer_question(
                     conn,
-                    model(name),
+                    model(name, key),
                     question,
                     language or None,
-                    embedder=embedder() if hybrid else None,
+                    embedder=embedder(key) if hybrid else None,
                 )
             if demo.log_enabled():
                 log_answer(answer, name)
-        except (ModelError, RuntimeError, ValueError) as error:
+        except ERRORS as error:
             st.error(str(error))
             st.stop()
         st.caption(f"Search: “{answer.rewrite.query}”, language: {answer.rewrite.language}")
@@ -125,9 +162,9 @@ else:
         try:
             with closing(sqlite3.connect(sources.DB_PATH)) as conn:
                 context = build_context(
-                    conn, query, language or None, embedder=embedder() if hybrid else None
+                    conn, query, language or None, embedder=embedder(key) if hybrid else None
                 )
-        except (ModelError, RuntimeError) as error:
+        except ERRORS as error:
             st.error(str(error))
             st.stop()
         show_evidence(context)

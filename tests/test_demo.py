@@ -43,7 +43,7 @@ def test_valid_labels_become_links_and_invented_ones_stay_marked(conn):
     model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1], но [V99].")
     answer = answer_question(conn, model, "q", embedder=None)
     text = demo.linked_answer(answer)
-    assert "\\[[V1](https://" in text
+    assert "\\[[V1](<https://" in text
     assert "\\[V99?\\]" in text
     assert any("V99" in warning for warning in demo.warnings(answer))
 
@@ -61,7 +61,7 @@ def test_every_label_the_citation_check_accepts_is_linked(conn):
     model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1, T1], [v 1].")
     answer = answer_question(conn, model, "q", embedder=None)
     text = demo.linked_answer(answer)
-    assert "[V1](https://" in text and "[T1](https://" in text and "[v 1](https://" in text
+    assert "[V1](<https://" in text and "[T1](<https://" in text and "[v 1](<https://" in text
 
 
 def test_links_and_images_written_by_the_model_stay_text(conn):
@@ -100,3 +100,72 @@ def test_logging_can_be_turned_off(monkeypatch):
     assert demo.log_enabled()
     monkeypatch.setenv("GLOTTO_LENS_LOG", "0")
     assert not demo.log_enabled()
+
+
+def test_a_backslash_before_a_label_does_not_break_its_link(conn):
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Путь C:\\[V1].")
+    text = demo.linked_answer(answer_question(conn, model, "q", embedder=None))
+    assert "\\\\\\[[V1](<https://" in text  # escaped backslash, escaped bracket, then link
+
+
+def test_uppercase_www_and_brackets_in_urls_are_safe():
+    assert "WWW\\.EVIL" in demo.escape("see WWW.EVIL.EXAMPLE")
+    assert "www\\.x" in demo.escape("www.x")
+
+
+def test_label_links_keep_a_closing_parenthesis_in_the_url(conn):
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    answer = answer_question(conn, model, "q", embedder=None)
+    cited = answer.cited[0]
+    answer.cited[0] = type(cited)(**{**vars(cited), "url": "https://example.org/a(b)"})
+    assert "[V1](<https://example.org/a(b)>)" in demo.linked_answer(answer)
+
+
+def test_public_demo_uses_only_the_visitors_key(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "server")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder")
+    monkeypatch.delenv("GLOTTO_LENS_PUBLIC", raising=False)
+    assert demo.credentials() == ("server", "folder")
+    assert demo.credentials(" mine ", " f ") == ("mine", "f")
+    monkeypatch.setenv("GLOTTO_LENS_PUBLIC", "1")
+    assert demo.credentials() is None and demo.credentials("mine", "") is None
+    assert demo.credentials("mine", "f") == ("mine", "f")
+    assert not demo.log_enabled()
+
+
+def test_the_embedder_takes_the_visitors_key(monkeypatch, tmp_path):
+    from glotto_lens.vectors import YandexEmbedder
+
+    monkeypatch.delenv("YANDEX_API_KEY", raising=False)
+    monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
+    monkeypatch.chdir(tmp_path)  # no .env here
+    embedder = YandexEmbedder("key", "folder")
+    assert (embedder.api_key, embedder.folder_id) == ("key", "folder")
+
+
+def _gzipped(source, tmp_path):
+    import gzip
+    import hashlib
+
+    packed = tmp_path / "asset" / "glottolens.sqlite.gz"
+    packed.parent.mkdir()
+    packed.write_bytes(gzip.compress(source.read_bytes()))
+    return packed, hashlib.sha256(packed.read_bytes()).hexdigest()
+
+
+def test_the_database_is_downloaded_once_and_checked(db_path, tmp_path):
+    packed, digest = _gzipped(db_path, tmp_path)
+    target = tmp_path / "data" / "glottolens.sqlite"
+    assert demo.fetch_database(packed.as_uri(), digest, target) == target
+    with closing(sqlite3.connect(target)) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0] > 0
+    packed.unlink()  # a second call does not download again
+    assert demo.fetch_database(packed.as_uri(), digest, target) == target
+
+
+def test_a_wrong_download_leaves_nothing_behind(db_path, tmp_path):
+    packed, _ = _gzipped(db_path, tmp_path)
+    target = tmp_path / "data" / "glottolens.sqlite"
+    with pytest.raises(ValueError, match="SHA-256"):
+        demo.fetch_database(packed.as_uri(), "0" * 64, target)
+    assert list(target.parent.iterdir()) == []

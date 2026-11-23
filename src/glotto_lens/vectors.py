@@ -80,11 +80,11 @@ class YandexEmbedder:
 
     name = "text-search"
 
-    def __init__(self) -> None:
+    def __init__(self, api_key: str | None = None, folder_id: str | None = None) -> None:
         load_env()
         self.timeout = timeout_seconds()
-        self.api_key = os.environ.get("YANDEX_API_KEY")
-        self.folder_id = os.environ.get("YANDEX_FOLDER_ID")
+        self.api_key = api_key or os.environ.get("YANDEX_API_KEY")
+        self.folder_id = folder_id or os.environ.get("YANDEX_FOLDER_ID")
         if not self.api_key or not self.folder_id:
             raise RuntimeError("Set YANDEX_API_KEY and YANDEX_FOLDER_ID in the .env file")
         self.tokens = 0

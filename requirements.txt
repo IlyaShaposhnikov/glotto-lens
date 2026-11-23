@@ -1,0 +1,2 @@
+# Streamlit Community Cloud installs the package with the demo extra
+.[demo]

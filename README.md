@@ -142,6 +142,14 @@ The demo offers the four models served by the Responses API; Qwen, which needs
 
 ![The demo: an answer with linked citations above the evidence table](docs/demo.png)
 
+For a public deployment (Streamlit Community Cloud reads `requirements.txt`), three secrets
+are enough: `GLOTTO_LENS_PUBLIC = "1"` makes visitors answer with their own Yandex AI
+Studio key and turns the question log off; `GLOTTO_LENS_DB_URL` and
+`GLOTTO_LENS_DB_SHA256` point to the built database, gzipped as a release asset, which the
+page downloads once on its first start. The asset must be rebuilt when the build code
+changes. Answers are still cached on the server's disk, so a repeated question costs
+nothing.
+
 The same pipeline is available as LangChain components (`pip install -e ".[langchain]"`):
 a `BaseRetriever` that returns the evidence as `Document`s with labels and URLs, and an
 LCEL chain, rewrite → retrieve → answer → citation check. The chain takes a GlottoLens model
@@ -396,6 +404,7 @@ src/glotto_lens/
   evaluate.py    question set checks, metrics, reports
   cli.py         the glotto-lens command
 streamlit_app.py       the web demo (optional)
+requirements.txt       dependencies for Streamlit Community Cloud
 eval/questions.jsonl   the question set
 eval/heldout.jsonl     the held-out question set
 eval/reports/          the evaluation reports behind the results table
