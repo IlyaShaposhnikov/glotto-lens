@@ -37,6 +37,22 @@ EXAMPLES = [
     "What is the basic word order of Irish?",
     "Does Basque have a definite article?",
 ]
+
+# Evidence tab: (English search query, language), no model involved
+EVIDENCE_EXAMPLES = [
+    ("number of cases", "Finnish"),
+    ("tone", "Yoruba"),
+    ("noun classes", "Swahili"),
+    ("order of subject object and verb", "Irish"),
+    ("definite article", "Basque"),
+]
+
+
+def evidence_label(example: tuple[str, str]) -> str:
+    query, language = example
+    return f"{language}: {query}"
+
+
 # Markdown that could add a link, an image or a raw URL of the model's choosing; the
 # remaining marks (*, _, -, #) only format, so lists and emphasis still render.
 MARKDOWN = re.compile(r"([\\`\[\]()!<>:@|~$])")
@@ -147,7 +163,7 @@ def value_rows(context: Context) -> list[dict]:
         {
             "label": citation.label,
             "value": citation.title,
-            "coded": citation.known,
+            "coded": bool(citation.known),  # one type per column: Arrow refuses 1 next to True
             "url": citation.url,
         }
         for citation in value_citations(context)

@@ -78,7 +78,10 @@ def show_evidence(context) -> None:
         st.dataframe(
             rows,
             hide_index=True,
-            column_config={"url": st.column_config.LinkColumn("source")},
+            column_config={
+                "url": st.column_config.LinkColumn("source"),
+                "coded": st.column_config.CheckboxColumn("coded"),
+            },
         )
     elif context.languoid is None:
         st.info("No language recognised, so no values: only passages.")
@@ -109,6 +112,17 @@ def use_example() -> None:
         st.session_state.question = st.session_state.example
 
 
+EVIDENCE_EXAMPLES = {demo.evidence_label(example): example for example in demo.EVIDENCE_EXAMPLES}
+
+
+def use_evidence_example() -> None:
+    if st.session_state.evidence_example:
+        query, language = EVIDENCE_EXAMPLES[st.session_state.evidence_example]
+        st.session_state.evidence_query = query
+        st.session_state.evidence_language = language
+        st.session_state.run_evidence = True
+
+
 try:
     ready_db = database_ready()
 except Exception as error:  # noqa: BLE001 - show why the download failed
@@ -136,7 +150,8 @@ with st.sidebar:
         disabled=not ready,
         help="Run `glotto-lens embed` once to enable."
         if not ready
-        else "Embeds the query: one extra API call, so it needs a key on both tabs.",
+        else "Embeds the query: one extra API call, so it needs a key on both tabs. "
+        "On the evidence tab it searches again at once.",
     )
     st.markdown(
         "Data: [Grambank](https://grambank.clld.org) · [WALS](https://wals.info) · "
@@ -170,9 +185,10 @@ with ask_tab:
         elif key is None:
             st.warning("Enter your Yandex AI Studio API key and folder ID in the sidebar.")
         else:
-            answer_model = model(name, key)
-            search = embedder(key) if hybrid else None
-            try:
+            answer_model = search = None
+            try:  # building the models reads YANDEX_TIMEOUT, which can be invalid
+                answer_model = model(name, key)
+                search = embedder(key) if hybrid else None
                 with (
                     st.spinner("Searching and answering..."),
                     closing(sqlite3.connect(sources.DB_PATH)) as conn,
@@ -191,26 +207,40 @@ with ask_tab:
         show_answer(*st.session_state.answer_result)
 
 with evidence_tab:
+    st.session_state.setdefault("evidence_query", demo.EVIDENCE_EXAMPLES[0][0])
+    st.session_state.setdefault("evidence_language", demo.EVIDENCE_EXAMPLES[0][1])
+    st.pills(
+        "Examples",
+        list(EVIDENCE_EXAMPLES),
+        key="evidence_example",
+        on_change=use_evidence_example,
+    )
     with st.form("evidence_form"):
-        query = st.text_input("English search query", value="number of cases")
-        evidence_language = st.text_input("Language (optional)", value="Finnish")
+        query = st.text_input("English search query", key="evidence_query")
+        evidence_language = st.text_input("Language (optional)", key="evidence_language")
         searched = st.form_submit_button("Search", type="primary")
-    if searched and not query.strip():
+    use_vectors = hybrid and key is not None
+    if hybrid and key is None:
+        st.info("Hybrid search needs a key: searching with BM25 only.")
+    previous = st.session_state.get("evidence_result")
+    rerun = (
+        searched
+        or st.session_state.pop("run_evidence", False)
+        or previous is None  # the first visit shows an example
+        or previous[1] != use_vectors  # the hybrid toggle changed
+    )
+    if rerun and not query.strip():
         st.warning("Type a search query in English.")
-    elif searched or "evidence_result" not in st.session_state:  # the first visit shows an example
+    elif rerun:
         search = None
-        if hybrid and key is None:
-            st.info("Hybrid search needs a key: searched with BM25 only.")
-        elif hybrid:
-            search = embedder(key)
         try:
+            search = embedder(key) if use_vectors else None
             with closing(sqlite3.connect(sources.DB_PATH)) as conn:
-                st.session_state.evidence_result = build_context(
-                    conn, query, evidence_language or None, embedder=search
-                )
+                context = build_context(conn, query, evidence_language or None, embedder=search)
+            st.session_state.evidence_result = (context, use_vectors)
         except ERRORS as error:
             st.error(str(error))
         finally:
             close(search)
     if "evidence_result" in st.session_state:
-        show_evidence(st.session_state.evidence_result)
+        show_evidence(st.session_state.evidence_result[0])

@@ -280,7 +280,7 @@ class CachedModel:
         """A cached completion, or None for a missing, damaged or outdated file."""
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            if data.pop("version", None) != CACHE_VERSION:
+            if not isinstance(data, dict) or data.pop("version", None) != CACHE_VERSION:
                 return None
             return Completion(**{**data, "cached": True})
         except (OSError, ValueError, TypeError):

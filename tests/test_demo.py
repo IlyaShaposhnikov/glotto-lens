@@ -242,3 +242,14 @@ def test_per_request_clients_are_closed():
         wrapper(inner).close()
         assert client.closed and inner._client is None
         inner.close()  # nothing open: no error
+
+
+def test_the_coded_column_has_one_type(conn):
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1].")
+    rows = demo.value_rows(answer_question(conn, model, "q", embedder=None).context)
+    assert rows and all(isinstance(row["coded"], bool) for row in rows)
+
+
+def test_evidence_examples_have_distinct_labels():
+    labels = [demo.evidence_label(example) for example in demo.EVIDENCE_EXAMPLES]
+    assert len(set(labels)) == len(labels) and labels[0] == "Finnish: number of cases"

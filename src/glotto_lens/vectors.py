@@ -64,7 +64,8 @@ MISSING = """
     WHERE d.kind = 'feature' AND v.document_id IS NULL ORDER BY d.id"""
 STORED = """
     SELECT v.document_id, d.feature_id, v.vector FROM document_vectors v
-    JOIN documents d ON d.id = v.document_id WHERE v.model = ? ORDER BY v.document_id"""
+    JOIN documents d ON d.id = v.document_id AND d.kind = 'feature'
+    WHERE v.model = ? ORDER BY v.document_id"""
 
 
 class Embedder(Protocol):

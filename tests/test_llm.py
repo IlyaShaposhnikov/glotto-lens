@@ -74,7 +74,9 @@ def test_damaged_or_outdated_cache_files_count_as_misses(tmp_path):
     assert model.complete("system", "hello").cached is False
     path.write_text(json.dumps({"version": 0, "text": "old", "model": "fake"}), encoding="utf-8")
     assert model.complete("system", "hello").cached is False
-    assert inner.calls == 3
+    path.write_text("5", encoding="utf-8")  # valid JSON, but not an object
+    assert model.complete("system", "hello").cached is False
+    assert inner.calls == 4
     assert not list((tmp_path / "cache").glob("*.part"))
 
 
