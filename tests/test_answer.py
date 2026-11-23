@@ -167,3 +167,23 @@ def test_the_search_mode_can_be_chosen_per_call(conn, monkeypatch):
     monkeypatch.setattr(context, "EMBEDDER", object())  # would fail if it were read
     model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Да [V1].")
     assert answer_question(conn, model, "q", embedder=None).cited
+
+
+def test_hybrid_command_passes_the_embedder_without_the_global(db_path, monkeypatch):
+    from glotto_lens import context, vectors
+
+    marker = type("Marker", (), {"name": "marker"})()
+    monkeypatch.setattr(answer_module, "DB_PATH", db_path)
+    monkeypatch.setattr(context, "EMBEDDER", None)
+    monkeypatch.setattr(vectors, "default_embedder", lambda: marker)
+    monkeypatch.setattr(vectors, "check_ready", lambda conn, name: None)
+    seen = {}
+
+    def fake_answer(conn, model, question, language=None, embedder=None):
+        seen["embedder"] = embedder
+        raise answer_module.ModelError("stop here")
+
+    monkeypatch.setattr(answer_module, "answer_question", fake_answer)
+    with pytest.raises(SystemExit):
+        main(["q", "--hybrid"], model=ScriptedModel())
+    assert seen["embedder"] is marker and context.EMBEDDER is None

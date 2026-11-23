@@ -4,6 +4,7 @@ import csv
 import io
 import os
 import shutil
+import sqlite3
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -14,6 +15,17 @@ DATA_DIR = Path(os.environ.get("GLOTTO_LENS_DATA", "data")).expanduser()
 RAW_DIR = DATA_DIR / "raw"
 DB_PATH = DATA_DIR / "glottolens.sqlite"
 USER_AGENT = "glotto-lens"
+
+
+def read_only(path: Path | str | None = None) -> sqlite3.Connection:
+    """Open the database read-only, never creating it.
+
+    The URI is built with as_uri(): a Windows path such as C:\\data\\db.sqlite, a space or
+    a "?" in a folder name would break a hand-written "file:{path}" URI.
+    """
+    uri = Path(path or DB_PATH).resolve().as_uri() + "?mode=ro"
+    return sqlite3.connect(uri, uri=True)
+
 
 csv.field_size_limit(2**31 - 1)
 

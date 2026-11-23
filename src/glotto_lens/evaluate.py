@@ -51,7 +51,7 @@ from glotto_lens.cliargs import non_negative
 from glotto_lens.documents import RELEASES
 from glotto_lens.languages import KNOWN_FACTS, find_languages, language_profile
 from glotto_lens.llm import APIS, CachedModel, ChatModel, Completion, YandexModel
-from glotto_lens.sources import DATA_DIR, DB_PATH
+from glotto_lens.sources import DATA_DIR, DB_PATH, read_only
 
 QUESTIONS = Path(__file__).resolve().parents[2] / "eval" / "questions.jsonl"
 REPORTS = DATA_DIR / "reports"
@@ -416,6 +416,7 @@ def evaluate_items(
     use_judge: bool = False,
     judge_model: ChatModel | None = None,
     rewrite_model: ChatModel | None = None,
+    embedder=None,
 ) -> Iterator[Score]:
     """Score items one by one; a failing call is recorded as an error and the run goes on.
 
@@ -423,7 +424,7 @@ def evaluate_items(
     retrieval settings can be compared for free. With use_judge, each answer also gets an
     LLM verdict from judge_model (default: model); a failing judge call leaves it empty.
     rewrite_model (default: model) rewrites the questions, so that several answer models can
-    be compared on the same evidence.
+    be compared on the same evidence. embedder: None for BM25, an embedder for hybrid.
     """
     for item in items:
         expected = Gold(item.glottocode, None)
@@ -431,9 +432,12 @@ def evaluate_items(
             expected = gold(conn, item)
             if retrieval_only:
                 rewriter = rewrite_model or model
-                yield score_retrieval(item, expected, *retrieve(conn, rewriter, item.question))
+                found = retrieve(conn, rewriter, item.question, embedder=embedder)
+                yield score_retrieval(item, expected, *found)
             else:
-                answer = answer_question(conn, model, item.question, rewrite_model=rewrite_model)
+                answer = answer_question(
+                    conn, model, item.question, rewrite_model=rewrite_model, embedder=embedder
+                )
                 result = score(item, expected, answer)
                 if use_judge:
                     record = expected_text(conn, item, expected)
@@ -462,10 +466,13 @@ def evaluate(
     use_judge: bool = False,
     judge_model: ChatModel | None = None,
     rewrite_model: ChatModel | None = None,
+    embedder=None,
 ) -> list[Score]:
     """All scores at once, see evaluate_items."""
     return list(
-        evaluate_items(conn, model, items, retrieval_only, use_judge, judge_model, rewrite_model)
+        evaluate_items(
+            conn, model, items, retrieval_only, use_judge, judge_model, rewrite_model, embedder
+        )
     )
 
 
@@ -516,7 +523,7 @@ def code_version() -> str | None:
 
 
 def experiment_identity(
-    items_path: Path, use_judge: bool = False, judge_model: str | None = None
+    items_path: Path, use_judge: bool = False, judge_model: str | None = None, embedder=None
 ) -> dict:
     """What a report depends on: the code commit, data releases, prompts, the question set,
     the metric, the retrieval settings and, with a judge, the judge prompts."""
@@ -529,7 +536,7 @@ def experiment_identity(
         "prompts_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
         "questions_sha256": hashlib.sha256(items_path.read_bytes()).hexdigest(),
         "metrics_sha256": metric_fingerprint(),
-        "retrieval": retrieval_settings(),
+        "retrieval": retrieval_settings(embedder),
     }
     if use_judge:
         identity["judge_sha256"] = _sha256(prompts.JUDGE_SYSTEM + prompts.JUDGE_USER)
@@ -555,8 +562,10 @@ def gaps(conn: sqlite3.Connection, feature: str, limit: int = 20) -> list[tuple]
     return found[:limit]
 
 
-def retrieval_settings() -> dict:
-    """Retrieval constants that change results, recorded with every report."""
+def retrieval_settings(embedder=None) -> dict:
+    """Retrieval constants that change results, recorded with every report.
+
+    embedder: the one the run searched with; None for BM25 runs."""
     from glotto_lens import context, search
 
     settings = {
@@ -572,14 +581,14 @@ def retrieval_settings() -> dict:
         ).hexdigest(),
         "stopwords": sorted(search.STOPWORDS),
     }
-    if context.EMBEDDER is not None:  # absent for BM25 runs, so their identity is unchanged
+    if embedder is not None:  # absent for BM25 runs, so their identity is unchanged
         from glotto_lens import vectors
 
         try:  # read-only: a report never creates the database
-            with closing(sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)) as conn:
-                settings["hybrid"] = vectors.settings(conn)
+            with closing(read_only(DB_PATH)) as conn:
+                settings["hybrid"] = vectors.settings(conn, embedder)
         except sqlite3.OperationalError:
-            settings["hybrid"] = vectors.settings()
+            settings["hybrid"] = vectors.settings(embedder=embedder)
     return settings
 
 
@@ -632,15 +641,16 @@ def main(
         context_settings.MAX_FEATURES = args.max_features
     if args.fusion and not args.hybrid:
         parser.error("--fusion needs --hybrid")
+    embedder = None
     if args.hybrid:
         from glotto_lens import vectors
 
         if args.fusion:
             vectors.FUSION = args.fusion
         try:
-            context_settings.EMBEDDER = vectors.default_embedder()
+            embedder = vectors.default_embedder()
             with closing(sqlite3.connect(DB_PATH)) as conn:
-                vectors.check_ready(conn, context_settings.EMBEDDER.name)
+                vectors.check_ready(conn, embedder.name)
         except RuntimeError as error:
             parser.error(str(error))
     with closing(sqlite3.connect(DB_PATH)) as conn:
@@ -706,7 +716,14 @@ def main(
         scores: list[Score] = []
         try:
             runs = evaluate_items(
-                conn, model, usable, args.retrieval_only, args.judge, judge_model, rewrite_model
+                conn,
+                model,
+                usable,
+                args.retrieval_only,
+                args.judge,
+                judge_model,
+                rewrite_model,
+                embedder,
             )
             for number, s in enumerate(runs, start=1):
                 scores.append(s)
@@ -734,7 +751,9 @@ def main(
                             else {}
                         ),
                         "mode": "retrieval only" if args.retrieval_only else "full",
-                        **experiment_identity(args.questions, args.judge, judge_model.name),
+                        **experiment_identity(
+                            args.questions, args.judge, judge_model.name, embedder
+                        ),
                         "selection": {"only": args.only, "limit": args.limit},
                         "finished": len(scores) == len(usable),
                         "left_out": problems,

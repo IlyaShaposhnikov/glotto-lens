@@ -112,6 +112,21 @@ def cited_labels(text: str) -> list[str]:
     return list(dict.fromkeys(labels))
 
 
+def label_spans(text: str) -> list[tuple[int, int, str]]:
+    """Every cited label with its place in the text: (start, end, normalized label).
+
+    The same reading as cited_labels, so whatever counts as a citation can be linked:
+    [V1, T2] gives two spans, [v 1] one span with the label V1.
+    """
+    spans = []
+    for group in BRACKETS.finditer(text):
+        for label in LABEL.finditer(group.group(1)):
+            start = group.start(1) + label.start()
+            end = group.start(1) + label.end()
+            spans.append((start, end, label.group().upper().replace(" ", "")))
+    return spans
+
+
 def check_citations(text: str, context: Context) -> tuple[list[Citation], list[str]]:
     """Split the labels cited in the answer into known evidence and unknown labels."""
     known = citations(context)
@@ -253,14 +268,14 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
         "--hybrid", action="store_true", help="BM25 and embeddings (needs 'glotto-lens embed')"
     )
     args = parser.parse_args(argv)
+    embedder = None
     if args.hybrid:
-        from glotto_lens import context
         from glotto_lens.vectors import check_ready, default_embedder
 
         try:
-            context.EMBEDDER = default_embedder()
+            embedder = default_embedder()
             with closing(sqlite3.connect(DB_PATH)) as conn:
-                check_ready(conn, context.EMBEDDER.name)
+                check_ready(conn, embedder.name)
         except RuntimeError as error:
             sys.exit(str(error))
     model = model or CachedModel(
@@ -269,7 +284,7 @@ def main(argv: list[str] | None = None, model: ChatModel | None = None) -> None:
     )
     with closing(sqlite3.connect(DB_PATH)) as conn:
         try:
-            answer = answer_question(conn, model, args.question, args.language)
+            answer = answer_question(conn, model, args.question, args.language, embedder=embedder)
         except ModelError as error:
             sys.exit(f"The model call failed: {error}")
         except RuntimeError as error:  # e.g. --hybrid before 'glotto-lens embed'

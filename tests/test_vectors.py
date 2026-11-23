@@ -112,10 +112,9 @@ def test_hybrid_settings_are_recorded_only_for_hybrid_runs(monkeypatch):
     from glotto_lens import context
     from glotto_lens.evaluate import retrieval_settings
 
-    monkeypatch.setattr(context, "EMBEDDER", None)
+    monkeypatch.setattr(context, "EMBEDDER", TopicEmbedder())  # the global is not read
     assert "hybrid" not in retrieval_settings()
-    monkeypatch.setattr(context, "EMBEDDER", TopicEmbedder())
-    assert retrieval_settings()["hybrid"]["embedder"] == "topics"
+    assert retrieval_settings(TopicEmbedder())["hybrid"]["embedder"] == "topics"
 
 
 def test_context_uses_the_hybrid_pool_when_an_embedder_is_set(conn, monkeypatch):

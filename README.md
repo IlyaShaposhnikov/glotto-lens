@@ -134,6 +134,14 @@ pip install -e ".[demo]"
 streamlit run streamlit_app.py
 ```
 
+The model's text is shown as plain text: only the labels become links. The hybrid toggle
+embeds the query, so it needs the key even with evidence only. Questions go to
+`answers.jsonl` like those of `ask`; set `GLOTTO_LENS_LOG=0` when others use the page.
+The demo offers the four models served by the Responses API; Qwen, which needs
+`--api chat`, is left out.
+
+![The demo: an answer with linked citations above the evidence table](docs/demo.png)
+
 The same pipeline is available as LangChain components (`pip install -e ".[langchain]"`):
 a `BaseRetriever` that returns the evidence as `Document`s with labels and URLs, and an
 LCEL chain, rewrite → retrieve → answer → citation check. The chain takes a GlottoLens model
@@ -380,7 +388,6 @@ src/glotto_lens/
   vectors.py     embeddings in SQLite, vector search, hybrid fusion (reserved slots or RRF)
   langchain_adapter.py  the pipeline as a LangChain retriever and LCEL chain (optional)
   demo.py        what the web demo shows, as plain data
-streamlit_app.py       the web demo (optional)
   languages.py   name normalisation, language lookup, language profiles
   context.py     evidence for a question: features, values, passages, labels
   prompts.py     rewrite and answer prompts
@@ -388,6 +395,7 @@ streamlit_app.py       the web demo (optional)
   answer.py      the pipeline: rewrite, retrieve, answer, citation check, answer log
   evaluate.py    question set checks, metrics, reports
   cli.py         the glotto-lens command
+streamlit_app.py       the web demo (optional)
 eval/questions.jsonl   the question set
 eval/heldout.jsonl     the held-out question set
 eval/reports/          the evaluation reports behind the results table

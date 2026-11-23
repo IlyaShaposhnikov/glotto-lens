@@ -318,12 +318,10 @@ def vector_features(
     ]
 
 
-def settings(conn: sqlite3.Connection | None = None) -> dict:
-    """What decides hybrid results, for reports."""
-    from glotto_lens import context
-
+def settings(conn: sqlite3.Connection | None = None, embedder=None) -> dict:
+    """What decides hybrid results, for reports; coverage needs conn and embedder."""
     result = {
-        "embedder": context.EMBEDDER.name if context.EMBEDDER else None,
+        "embedder": embedder.name if embedder else None,
         "doc_model": DOC_MODEL,
         "query_model": QUERY_MODEL,
         "dimensions": DIMENSIONS,
@@ -334,8 +332,8 @@ def settings(conn: sqlite3.Connection | None = None) -> dict:
         "vector_slots": VECTOR_SLOTS if FUSION == "slots" else None,
         "rrf_k": RRF_K if FUSION == "rrf" else None,
     }
-    if conn is not None and context.EMBEDDER is not None:
-        result.update(coverage(conn, context.EMBEDDER.name))
+    if conn is not None and embedder is not None:
+        result.update(coverage(conn, embedder.name))
     return result
 
 

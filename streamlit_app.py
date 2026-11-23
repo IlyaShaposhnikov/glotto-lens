@@ -2,6 +2,7 @@
 
 Needs the database (glotto-lens build). Answers need YANDEX_API_KEY and YANDEX_FOLDER_ID
 in .env; without them the page still shows the evidence for an English search query.
+Questions are logged to answers.jsonl unless GLOTTO_LENS_LOG=0.
 """
 
 import sqlite3
@@ -67,7 +68,9 @@ with st.sidebar:
         "Hybrid search (BM25 + embeddings)",
         value=False,
         disabled=not ready,
-        help="Run `glotto-lens embed` once to enable." if not ready else "One extra API call.",
+        help="Run `glotto-lens embed` once to enable."
+        if not ready
+        else "Embeds the query: one extra API call, so it needs the key in both modes.",
     )
     language = st.text_input("Language (optional)", help="Overrides the language in the question.")
     st.markdown(
@@ -99,7 +102,8 @@ if mode.startswith("Answer"):
                     language or None,
                     embedder=embedder() if hybrid else None,
                 )
-            log_answer(answer, name)
+            if demo.log_enabled():
+                log_answer(answer, name)
         except (ModelError, RuntimeError, ValueError) as error:
             st.error(str(error))
             st.stop()
