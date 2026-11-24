@@ -10,8 +10,8 @@
 
 **Live demo: [glotto-lens.streamlit.app](https://glotto-lens.streamlit.app/)** (answers need your own Yandex AI Studio key; the evidence tab works without one)
 
-Ask a question about the grammar of a language, in Russian or English, and get a short
-answer in which every statement points to a record in a typological database:
+Ask a question about the grammar of a language, in English or another language, and get a
+short answer in which every statement points to a record in a typological database:
 
 ```text
 $ glotto-lens ask "Правда ли, что в ирландском глагол стоит в начале предложения?"
@@ -263,7 +263,9 @@ What the numbers say:
 - The last row was first measured at commit `12ac20d` and measured again at `ff0740a`, after
   the answer-language change (see "Results: answer language"): the same figures, and every
   answer in the language of its question (41/41). The judge agreed on all 33 values and now
-  rejects only `abk-GB028`; it accepts `kom-30A` (see "One record per question").
+  rejects only `abk-GB028`. It accepts `kom-30A` because that answer changed with the new
+  prompt: it now says that WALS has no value for the number of genders. The `12ac20d`
+  report is kept in the git history of `5-hybrid.json`.
 
 ### Hybrid search
 
@@ -426,10 +428,11 @@ What the numbers say:
   and counts such answers as claims. A prompt rule against answering from other features
   was tried on the tuning set: `kom-30A` kept its conclusion, `abk-GB028` lost its hedge,
   and the rule was dropped.
-- **Answer language beyond ten languages.** Code reads the question's language only for the
+- **Answer language beyond twelve languages.** Code reads the question's language only for the
   twelve languages in `langid.py`; for the others, Cyrillic included, it is the rewrite
   model's guess, and that model confused Portuguese and Italian with Spanish. The answer
-  language check itself reads only those languages, plus Russian.
+  language check itself reads only those twelve, plus Russian, Arabic and Hindi; the sets
+  test ten of them.
 - **One language per question.** Comparisons ("Russian vs Polish") and questions about
   languages in general are not supported yet.
 - **Coverage.** The databases have gaps (Grambank has no data for Standard German, for

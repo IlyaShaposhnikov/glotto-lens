@@ -93,7 +93,10 @@ def show_evidence(context) -> None:
 
 
 def show_answer(answer, name: str) -> None:
-    st.caption(f"Search: “{answer.rewrite.query}”, language: {answer.rewrite.language}")
+    line = f"Search: “{answer.rewrite.query}”, about: {answer.rewrite.language}"
+    if answer.rewrite.question_language:
+        line += f" · answer in: {answer.rewrite.question_language}"
+    st.caption(line)
     st.markdown(demo.linked_answer(answer))
     for warning in demo.warnings(answer):
         st.warning(warning)
@@ -164,9 +167,9 @@ st.write(
     "Glottolog with a citation for every claim."
 )
 st.caption(
-    "Ask in English or in another language: the answer comes in the language of the question "
-    "(checked in English, Russian, Spanish, German, French, Portuguese, Italian, Chinese, "
-    "Japanese and Korean)."
+    "Ask in English or in another language: the answer comes in the language of the question. "
+    "Tested with questions in English, Russian, Spanish, German, French, Portuguese, Italian, "
+    "Chinese, Japanese and Korean."
 )
 
 ask_tab, evidence_tab = st.tabs(["Ask a question", "Browse evidence (no key needed)"])

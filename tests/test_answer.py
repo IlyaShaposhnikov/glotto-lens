@@ -223,7 +223,8 @@ def test_a_clear_question_language_overrules_the_rewrite_step(conn):
     assert answer.rewrite.question_language == "Portuguese"
     assert answer.rewrite.language == "Russian"  # the search language is untouched
     assert model.prompts[-1][1].endswith("write the answer in Portuguese.")
-    assert "Answer in: Portuguese" in render_answer(answer)
+    rendered = render_answer(answer)
+    assert "about: 'Russian'" in rendered and "Answer in: Portuguese" in rendered
 
 
 def test_retrieval_and_an_explicit_language_keep_the_question_language(conn):
