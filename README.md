@@ -78,7 +78,9 @@ question ─► rewrite (LLM) ─► language name + English query in WALS/Gramb
 - **Prompts.** The rewrite prompt maps everyday wording to database terminology with a
   few examples ("is there a word like 'the'" → "definite articles"). The answer prompt
   requires a citation for every statement, forbids inferring beyond the evidence and
-  explains that "no value recorded" means missing data, not absence of the feature.
+  explains that "no value recorded" means missing data, not absence of the feature. It
+  also names the language to answer in: read from the question when that is certain,
+  otherwise as the rewrite step named it.
 - **LLM.** [Alice AI](https://yandex.cloud/en/services/ai-studio) through Yandex AI
   Studio's OpenAI-compatible Responses API. Calls are cached on disk and token usage is
   logged, so repeated runs are free.
@@ -193,6 +195,12 @@ A second set, [`eval/heldout.jsonl`](eval/heldout.jsonl), has 32 questions (23 w
 9 without) about 30 languages, none of them in the first set; a test keeps it so. It was
 committed before its first run and is not used for tuning (`--questions eval/heldout.jsonl`).
 
+Two more sets of 25 questions check that the answer comes in the language of the question:
+[`eval/multilingual.jsonl`](eval/multilingual.jsonl) for tuning and
+[`eval/multilingual-heldout.jsonl`](eval/multilingual-heldout.jsonl) held out. Both cover
+English, Russian, Spanish, German, French, Portuguese, Italian, Chinese, Japanese and
+Korean, and both include questions in a language about that same language.
+
 ```bash
 glotto-lens eval check                     # free: items agree with the data
 glotto-lens eval gaps grambank:GB020       # free: languages without a value, for new no-data items
@@ -217,6 +225,7 @@ rerunning a finished run, or one where some calls failed, only pays for what is 
 | correct | value items | right language, and the answer cites a value line of the expected feature with the recorded value |
 | honest | no-data items | right language, feature retrieved, no coded value of it cited, and the answer says the data is missing |
 | no invalid citations | all items | the answer cites only labels present in the evidence |
+| answer language | items whose question and answer language can be read | the answer is in the language of the question (`langid.py`: writing system, or function words for six Latin-script languages) |
 | judge (with `--judge`) | all items | an LLM, given the question, the recorded value and the answer, but not the evidence, says the answer states that value or admits the gap |
 
 The judge is a cross-check, not the main metric: where it and the code-based checks
@@ -229,7 +238,7 @@ Alice AI (`aliceai-llm`), temperature 0. Each row is one change, measured on the
 The reports behind the rows are in [`eval/reports/`](eval/reports): every answer, the
 evidence features and the hashes of prompts, questions and metric. Rows 2 and 3 have the
 same answers and differ only in `metrics_sha256`. Row 4 was measured at commit `10c926e`,
-row 5 at `12ac20d`; reports record the commit from row 4 on, the earlier rows predate that.
+row 5 at `ff0740a`; reports record the commit from row 4 on, the earlier rows predate that.
 
 | Stage | Retrieved | Correct | Honest | Invalid citations | Report |
 |---|---|---|---|---|---|
@@ -251,8 +260,10 @@ What the numbers say:
   "WALS does not record the number of cases for Hindi" were not recognised before. The
   baseline honesty figure was measured with an earlier version of the check.
 - The set grew from 40 to 41 questions after the baseline (one English no-data question).
-- The last row was measured at commit `12ac20d`, with the judge too: it agreed on all 33
-  values and, as before, rejected `kom-30A` and `abk-GB028` (see "One record per question").
+- The last row was first measured at commit `12ac20d` and measured again at `ff0740a`, after
+  the answer-language change (see "Results: answer language"): the same figures, and every
+  answer in the language of its question (41/41). The judge agreed on all 33 values and now
+  rejects only `abk-GB028`; it accepts `kom-30A` (see "One record per question").
 
 ### Hybrid search
 
@@ -274,7 +285,9 @@ question was how to fuse the two rankings. Retrieval only, the same rewritten qu
   vectors find. They won `en-swa-30A` and lost nothing; with answers, `en-swa-30A` became a
   correct "five or more genders" citing WALS 30A.
 - The gain is one question of 73, and the slots were chosen on the tuning set; the held-out
-  set was used a second time here, for retrieval only. BM25 stays the default, since hybrid
+  set was used a second time here, for retrieval only, and a third time, also for retrieval
+  only, after the rewrite prompt gained a key for the question's language: 32/32
+  ([report](eval/reports/heldout-hybrid-retrieval-rewrite3.json)). BM25 stays the default, since hybrid
   search needs `glotto-lens embed` and an API call per question.
 - `rus-117A` also passed in this run. Its evidence changed only in the last two places, and
   it had passed and failed before with the same features, so it is not counted as a gain
@@ -284,7 +297,8 @@ question was how to fuse the two rankings. Retrieval only, the same rewritten qu
 
 Alice AI, the settings of retrieval row 4 (BM25), judge DeepSeek V4.1 Flash; commit
 `c6f6c82`, one run with answers. Nothing was tuned on its answers; later the set was used
-once more, for retrieval only, to check the hybrid search (see below).
+twice more, for retrieval only, to check the hybrid search and the new rewrite prompt (see
+"Hybrid search").
 
 | Set | Retrieved | Correct | Honest | Invalid citations | Judge: value | Judge: no data | Report |
 |---|---|---|---|---|---|---|---|
@@ -311,6 +325,31 @@ What the numbers say:
   On new questions a reasonable reading is 7–8 of 9, and the check alone gives 6.
 - None of the three misses was fixed here: changing the metric or the item after the run would make
   this row a tuning row.
+
+### Results: answer language
+
+A question in Spanish about Russian was answered in Russian: the prompt said "answer in the
+language of the question", and the model read it as the language the question is about.
+The fix in two steps, each checked on the sets above with hybrid search and the judge:
+
+1. The rewrite step names the language the question is written in, and the answer prompt
+   says "The question is written in Spanish: write the answer in Spanish". On the tuning
+   set this gave 21 of 25. The reports showed why the four failed: the rewrite model took
+   Portuguese and Italian questions for Spanish and a Chinese question about Japanese for
+   Japanese, and the answers followed it.
+2. Code now reads the language from the question when it leaves no doubt (Chinese,
+   Japanese, Korean, Greek, Hebrew and Thai by writing system; English, Spanish, German,
+   French, Portuguese and Italian by at least two function words) and falls back to the
+   rewrite model otherwise, for example for Cyrillic.
+
+| Set | Commit | Retrieved | Correct | Answer in the question's language | Judge | Report |
+|---|---|---|---|---|---|---|
+| Multilingual, tuning (25) | `ff0740a` | 25/25 | 25/25 | **25/25** (21/25 before step 2) | 25/25 | [multilingual](eval/reports/multilingual.json) |
+| Multilingual, held out (25) | `ff0740a` | 25/25 | 25/25 | **25/25** | 25/25 | [multilingual-heldout](eval/reports/multilingual-heldout.json) |
+
+The held-out set was committed together with step 2, before its first run, and has been run
+once. Its traps passed as well: "Em português, o adjetivo vem antes ou depois do
+substantivo?" got a Portuguese answer, "한국어의 기본 어순은 무엇입니까?" a Korean one.
 
 ### Results: answer models
 
@@ -360,9 +399,9 @@ What the numbers say:
 
 - **Tuned on the test set, checked on a held-out set.** Retrieval settings, the rewrite
   examples and the honesty check were chosen while looking at the 41 tuning questions. The
-  held-out set (32 questions, other languages) has been run once with answers and once more
-  for retrieval only, to check the hybrid search; it is small, and a third
-  look at it would no longer be held out.
+  held-out set (32 questions, other languages) has been run once with answers and twice
+  for retrieval only, to check the hybrid search and the new rewrite prompt; it is small,
+  and another run with answers would no longer be held out.
 - **Small set.** On 33 value questions one answer is 3 percentage points, and answers vary
   between runs when the evidence changes. In the fourth row `rus-117A` (possession in
   Russian) failed because the answer cited the Grambank lines instead of the WALS 117A
@@ -387,6 +426,10 @@ What the numbers say:
   and counts such answers as claims. A prompt rule against answering from other features
   was tried on the tuning set: `kom-30A` kept its conclusion, `abk-GB028` lost its hedge,
   and the rule was dropped.
+- **Answer language beyond ten languages.** Code reads the question's language only for the
+  twelve languages in `langid.py`; for the others, Cyrillic included, it is the rewrite
+  model's guess, and that model confused Portuguese and Italian with Spanish. The answer
+  language check itself reads only those languages, plus Russian.
 - **One language per question.** Comparisons ("Russian vs Polish") and questions about
   languages in general are not supported yet.
 - **Coverage.** The databases have gaps (Grambank has no data for Standard German, for
@@ -408,6 +451,7 @@ src/glotto_lens/
   langchain_adapter.py  the pipeline as a LangChain retriever and LCEL chain (optional)
   demo.py        what the web demo shows, as plain data
   languages.py   name normalisation, language lookup, language profiles
+  langid.py      which language a question or answer is written in
   context.py     evidence for a question: features, values, passages, labels
   prompts.py     rewrite and answer prompts
   llm.py         Yandex AI Studio client, disk cache, token log
@@ -418,6 +462,7 @@ streamlit_app.py       the web demo (optional)
 requirements.txt       dependencies for Streamlit Community Cloud
 eval/questions.jsonl   the question set
 eval/heldout.jsonl     the held-out question set
+eval/multilingual*.jsonl  questions in ten languages, for tuning and held out
 eval/reports/          the evaluation reports behind the results table
 docs/DATA.md           what the three databases contain, in figures from the build
 tests/                 pytest suite on small synthetic archives, no network or API key

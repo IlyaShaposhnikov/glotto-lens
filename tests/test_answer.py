@@ -141,6 +141,7 @@ def test_command_line_runs_with_a_given_model(db_path, tmp_path, monkeypatch, ca
     assert (record["glottocode"], record["model"]) == ("russ1263", "scripted")
     assert [(c["label"], c["feature"]) for c in record["cited"]] == [("V1", "wals:1A")]
     assert record["features"] and record["data"] == RELEASES
+    assert "question_language" in record["rewrite"]
 
 
 @pytest.mark.parametrize("value", ["null", "None", "unknown", "N/A", " "])
@@ -220,7 +221,9 @@ def test_a_clear_question_language_overrules_the_rewrite_step(conn):
     model = ScriptedModel(rewrite, "Sim [V1].")
     answer = answer_question(conn, model, "Quantos gêneros gramaticais tem o russo?", embedder=None)
     assert answer.rewrite.question_language == "Portuguese"
+    assert answer.rewrite.language == "Russian"  # the search language is untouched
     assert model.prompts[-1][1].endswith("write the answer in Portuguese.")
+    assert "Answer in: Portuguese" in render_answer(answer)
 
 
 def test_retrieval_and_an_explicit_language_keep_the_question_language(conn):
@@ -229,3 +232,18 @@ def test_retrieval_and_an_explicit_language_keep_the_question_language(conn):
     rewrite = '{"language": "Russian", "query": "feature", "question_language": "Spanish"}'
     found, _, _ = retrieve(conn, ScriptedModel(rewrite), "Quantos gêneros tem o russo?", "Russian")
     assert found.question_language == "Portuguese" and found.language == "Russian"
+
+
+def test_no_answer_language_when_neither_source_names_one():
+    from glotto_lens.answer import answer_language
+
+    assert answer_language("Есть ли в русском артикли?", Rewrite("Russian", "q")) is None
+
+
+def test_a_confident_question_language_reaches_the_log(db_path, tmp_path, monkeypatch):
+    monkeypatch.setattr(answer_module, "DB_PATH", db_path)
+    monkeypatch.setattr(answer_module, "ANSWER_LOG", tmp_path / "answers.jsonl")
+    model = ScriptedModel('{"language": "Russian", "query": "feature"}', "Sim [V1].")
+    main(["Quantos gêneros tem o russo?"], model=model)
+    record = json.loads((tmp_path / "answers.jsonl").read_text(encoding="utf-8"))
+    assert record["rewrite"]["question_language"] == "Portuguese"

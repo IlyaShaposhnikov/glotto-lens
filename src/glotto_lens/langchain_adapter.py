@@ -40,11 +40,11 @@ from glotto_lens import prompts, sources
 from glotto_lens.answer import (
     ANSWER_MAX_TOKENS,
     REWRITE_MAX_TOKENS,
+    answer_language,
     answer_prompt,
     check_citations,
     mark_invalid,
     parse_rewrite,
-    question_language,
 )
 from glotto_lens.context import (
     Context,
@@ -192,7 +192,7 @@ def build_chain(
         return {
             "query": rewrite.query,
             "language": language,
-            "question_language": question_language(inputs["question"], rewrite),
+            "question_language": answer_language(inputs["question"], rewrite),
             "rewrite_ok": rewrite.ok,
         }
 

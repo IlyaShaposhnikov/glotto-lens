@@ -10,14 +10,14 @@
     "reasoning_effort": null
   },
   "mode": "full",
-  "code": "12ac20d",
+  "code": "ff0740a",
   "data": {
     "grambank": "Grambank v1.0.3",
     "wals": "WALS v2020.6"
   },
-  "prompts_sha256": "5ae17babe14c60e86d97bea832d6d31dcaba679ee0201daed31b7edc0ad20af9",
+  "prompts_sha256": "b126f517852278328798a1901da64f3f35aeb69f5fa6c783e698d448919573ab",
   "questions_sha256": "9a868140487af19330766805a5420decf568a98a6dca95ec60d8b211690380cf",
-  "metrics_sha256": "638fe2702644d5b952943b1ee6f069a4d167956f4b4c22fc59a24b8ebcf46fc3",
+  "metrics_sha256": "975f26b61af4f9ee69d0a0f64bb41ad3470e73ff8601ab188f70c8469807cec1",
   "retrieval": {
     "text_limit": 5,
     "features_searched": 8,
@@ -85,15 +85,16 @@
     "correct (language and cited value)": "33/33 (100%)",
     "honest about missing data": "8/8 (100%)",
     "answers without invalid citations": "41/41 (100%)",
+    "answers in the language of the question": "41/41 (100%)",
     "judge: content correct": "33/33 (100%)",
-    "judge: admits missing data": "6/8 (75%)",
+    "judge: admits missing data": "7/8 (88%)",
     "judge yes, citation check no": "0",
     "judge no, citation check yes": "0",
-    "judge agrees with honest": "6/8 (75%)",
+    "judge agrees with honest": "7/8 (88%)",
     "judge calls failed (rerun to fill)": "0",
     "judge verdicts unreadable": "0",
-    "judge tokens (in / out)": "12042 / 4166",
-    "tokens (in / out)": "121911 / 2032"
+    "judge tokens (in / out)": "0 / 0",
+    "tokens (in / out)": "0 / 0"
   },
   "items": [
     {
@@ -122,14 +123,17 @@
         "wals:83A",
         "wals:82A"
       ],
-      "input_tokens": 2360,
-      "output_tokens": 27,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " Базовый порядок слов в русском языке — SVO (подлежащее — сказуемое — дополнение) [V1][T6].",
       "judged": true,
       "judge_reason": "The answer states SVO, matching the recorded Subject-verb-object order.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "jpn-81A",
@@ -157,14 +161,17 @@
         "grambank:GB132",
         "wals:82A"
       ],
-      "input_tokens": 3246,
-      "output_tokens": 57,
-      "answer": " В японском предложении глагол располагается в конце [V2][V5][T6]. Это соответствует порядку SOV (субъект — объект — глагол), как показано в примере: «John ga tegami o yon-da» («Джон прочитал письмо») [T6].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В японском предложении глагол чаще всего располагается в конце [V2][V5][T6]. Это соответствует порядку SOV (субъект — объект — глагол), как в примере: «John ga tegami o yon-da» («Джон прочитал письмо») [T6].",
       "judged": true,
-      "judge_reason": "The answer states the verb is at the end and explicitly identifies SOV order, matching the database value.",
+      "judge_reason": "The answer states the verb is at the end, matching the recorded SOV order.",
       "judge_error": null,
-      "judge_input_tokens": 372,
-      "judge_output_tokens": 63
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "iri-81A",
@@ -192,14 +199,17 @@
         "wals:82A",
         "grambank:GB132"
       ],
-      "input_tokens": 3332,
-      "output_tokens": 70,
-      "answer": " Да, в ирландском языке глагол стоит в начале предложения. Согласно данным WALS, для него характерен порядок слов VSO (глагол — подлежащее — дополнение) [V3][T6]. Также Grambank указывает, что для переходных предложений в ирландском глагол-начальный порядок является прагматически немаркированным [V5].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Да, в ирландском языке глагол обычно стоит в начале предложения — порядок слов VSO (глагол — подлежащее — дополнение) [V3][T6]. Это подтверждается данными WALS и Grambank: в ирландском непремеченный порядок слов в переходных предложениях — глагольно-начальный [V5], подлежащее следует за глаголом [V7].",
       "judged": true,
-      "judge_reason": "The answer states Irish has VSO order, matching the recorded Verb-subject-object value.",
+      "judge_reason": "The answer states Irish has VSO word order, matching the recorded Verb-subject-object value.",
       "judge_error": null,
-      "judge_input_tokens": 388,
-      "judge_output_tokens": 69
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "tur-81A",
@@ -227,14 +237,17 @@
         "wals:83A",
         "wals:82A"
       ],
-      "input_tokens": 2896,
-      "output_tokens": 34,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В турецком языке порядок подлежащего, дополнения и глагола — SOV (подлежащее — дополнение — глагол) [V1][T6][T7].",
       "judged": true,
       "judge_reason": "The answer states SOV, matching the recorded Subject-object-verb order.",
       "judge_error": null,
-      "judge_input_tokens": 342,
-      "judge_output_tokens": 53
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "bsq-37A",
@@ -262,14 +275,17 @@
         "grambank:GB023",
         "grambank:GB327"
       ],
-      "input_tokens": 2997,
-      "output_tokens": 107,
-      "answer": " Да, в баскском есть определённый артикль [V1][V2]. Согласно данным WALS (37A), в нём определённый артикль представлен отдельным словом, отличным от демонстративных [V1]. По данным Grambank (GB020), в языке присутствуют определённые (или специфические) артикли [V2]. При этом артикли располагаются после существительного (GB023) [V7], а препозиционных артиклей в языке нет (GB022) [V4].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В баскском языке есть определённый артикль [V1][V2]. Согласно данным WALS, он представляет собой отдельное слово, отличное от указательных местоимений [V1]. По данным Grambank, в баскском присутствуют определённые (или специфические) артикли [V2], причём они располагаются после существительного [V7], но не предшествуют ему [V4], а также не согласуются с существительным в числе [V5].",
       "judged": true,
-      "judge_reason": "The answer states Basque has a definite article as a distinct word from demonstratives, matching the WALS 37A value.",
+      "judge_reason": "The answer states Basque has a definite article distinct from demonstratives, matching the recorded WALS value.",
       "judge_error": null,
-      "judge_input_tokens": 408,
-      "judge_output_tokens": 103
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "rus-37A",
@@ -297,14 +313,17 @@
         "grambank:GB023",
         "grambank:GB327"
       ],
-      "input_tokens": 2970,
-      "output_tokens": 54,
-      "answer": " В русском языке нет артиклей вроде английского *the*. Согласно данным WALS и Grambank, в нём отсутствуют как определённые, так и неопределённые артикли [V1][V2][V3][V4][V5][V6][V7].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В русском языке нет артиклей вроде английского the [V1][V2][V3][V4][V5][V6][V7].",
       "judged": true,
-      "judge_reason": "The answer states that Russian has neither definite nor indefinite articles, matching the recorded value.",
+      "judge_reason": "The answer states Russian has no articles like English 'the', matching the database value that Russian has neither definite nor indefinite articles.",
       "judge_error": null,
-      "judge_input_tokens": 351,
-      "judge_output_tokens": 98
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "ger-38A",
@@ -321,25 +340,28 @@
       "rewrite_ok": true,
       "complete": true,
       "error": null,
-      "query": "indefinite articles",
+      "query": "definite articles",
       "features": [
-        "wals:38A",
-        "grambank:GB021",
-        "grambank:GB023",
         "wals:37A",
+        "grambank:GB020",
+        "wals:38A",
         "grambank:GB022",
         "grambank:GB186",
-        "grambank:GB020",
-        "grambank:GB074"
+        "grambank:GB021",
+        "grambank:GB023",
+        "grambank:GB327"
       ],
-      "input_tokens": 3443,
-      "output_tokens": 63,
-      "answer": " В немецком языке неопределённость существительного выражается с помощью числительного «один» (ein) в качестве неопределённого артикля [V1][T2][T6]. Например: «Ich habe einen Hund gekauft» («Я купил(а) собаку/одного собаку») [T2].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В немецком языке неопределённость существительного выражается с помощью числительного «один» (ein) в качестве неопределённого артикля [V3][T7][T8]. Например: «Ich habe einen Hund gekauft» («Я купил(а) собаку / одного собаку») [T7]. При этом использование числительного в такой функции в значительной степени обязательно для единственного числа [T7].",
       "judged": true,
       "judge_reason": "The answer states that the numeral for 'one' (ein) is used as the indefinite article, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 373,
-      "judge_output_tokens": 87
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "fin-49A",
@@ -367,14 +389,17 @@
         "grambank:GB316",
         "grambank:GB129"
       ],
-      "input_tokens": 2989,
-      "output_tokens": 16,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В финском языке 10 или более падежей [V1].",
       "judged": true,
       "judge_reason": "The answer states that Finnish has 10 or more cases, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 296,
-      "judge_output_tokens": 85
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "hun-49A",
@@ -402,14 +427,17 @@
         "grambank:GB316",
         "grambank:GB129"
       ],
-      "input_tokens": 3397,
-      "output_tokens": 57,
-      "answer": " В венгерском языке 10 или более падежей [V1][T6]. Согласно примеру из WALS, под некоторыми анализами выделяется до 21 продуктивного падежа (приведены падежи для слова hajó «корабль») [T6].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В венгерском языке 10 или более падежей [V1]. Согласно примеру из WALS, в нём насчитывается до 21 продуктивного падежа (на основе слова hajó «корабль») [T6].",
       "judged": true,
       "judge_reason": "The answer states that Hungarian has 10 or more cases, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 348,
-      "judge_output_tokens": 96
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "eng-49A",
@@ -437,14 +465,17 @@
         "grambank:GB316",
         "grambank:GB129"
       ],
-      "input_tokens": 2660,
-      "output_tokens": 30,
-      "answer": " В английском языке нет морфологического падежа у существительных [V5]. При этом в некоторых источниках фиксируется наличие двух падежных категорий [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В английском языке нет морфологического падежа у существительных [V5]. При этом в нём выделяют 2 падежные категории [V1]. Грамматические отношения в таких языках обычно выражаются с помощью порядка слов и служебных слов (например, предлогов) [T1].",
       "judged": true,
-      "judge_reason": "The answer mentions that some sources record two case categories for English, matching the database value.",
+      "judge_reason": "The answer states that English has 2 case categories, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 319,
-      "judge_output_tokens": 525
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "rus-30A",
@@ -472,14 +503,17 @@
         "wals:32A",
         "grambank:GB030"
       ],
-      "input_tokens": 3431,
-      "output_tokens": 11,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В русском языке три грамматических рода [V5].",
       "judged": true,
       "judge_reason": "The answer states that Russian has three grammatical genders, matching the recorded value.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "swa-30A",
@@ -507,14 +541,17 @@
         "grambank:GB030",
         "wals:32A"
       ],
-      "input_tokens": 2896,
-      "output_tokens": 20,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В суахили пять или более именных классов (родов) [V1].",
       "judged": true,
       "judge_reason": "The answer states five or more genders/classes, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 300,
-      "judge_output_tokens": 91
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "tur-30A",
@@ -542,14 +579,17 @@
         "wals:32A",
         "grambank:GB030"
       ],
-      "input_tokens": 2529,
-      "output_tokens": 34,
-      "answer": " В турецком языке нет грамматического рода [V1][V5][V7][V2][V3][V4][V6][V8].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В турецком языке нет грамматического рода [V1][V5][V7][V8]. Это подтверждается данными WALS (отсутствуют системы рода [V1][V7]) и Grambank (отсутствуют системы, где пол или иные признаки влияют на класс существительных [V2][V3][V4], нет гендерного согласования и различий в местоимениях [V6][V8]).",
       "judged": true,
       "judge_reason": "The answer states Turkish has no grammatical gender, matching the recorded value None.",
       "judge_error": null,
-      "judge_input_tokens": 315,
-      "judge_output_tokens": 75
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "mnd-13A",
@@ -577,14 +617,17 @@
         "grambank:GB312",
         "grambank:GB119"
       ],
-      "input_tokens": 2669,
-      "output_tokens": 28,
-      "answer": " Да, китайский (путунхуа) является тоновым языком. Согласно данным WALS, у него сложная система тонов [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Да, китайский (путунхуа) является тоновым языком. Согласно данным WALS, у него сложная система тонов [V1]. Кроме того, он входит в число языков Восточной и Юго-Восточной Азии, для которых характерно наличие тональных систем, в том числе с контурными тонами [T1].",
       "judged": true,
-      "judge_reason": "The answer states that Mandarin Chinese is tonal and has a complex tone system, matching the database value.",
+      "judge_reason": "The answer states Mandarin has a complex tone system, matching the recorded WALS value.",
       "judge_error": null,
-      "judge_input_tokens": 319,
-      "judge_output_tokens": 90
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "yor-13A",
@@ -612,14 +655,17 @@
         "grambank:GB312",
         "grambank:GB119"
       ],
-      "input_tokens": 2637,
-      "output_tokens": 81,
-      "answer": " Да, в языке йоруба есть тоны. Согласно данным WALS, у него сложная система тонов [V1][T1]. В частности, в йоруба присутствуют лексические различия между тремя уровневыми тонами — например, глаголы /bí/ ‘родить’, /bī/ ‘спросить’, /bì/ ‘рвать’ различаются именно тоном [T1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Да, в языке йоруба есть тоны. Согласно данным WALS, у него сложная система тонов [V1]. Как указано в описании [T1], в йоруба есть лексические различия между тремя уровневыми тонами — например, глаголы /bí/ ‘родить’, /bī/ ‘спросить’, /bì/ ‘рвать’.",
       "judged": true,
       "judge_reason": "The answer states that Yoruba has a complex tone system, matching the database value.",
       "judge_error": null,
-      "judge_input_tokens": 369,
-      "judge_output_tokens": 72
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "rus-13A",
@@ -647,14 +693,17 @@
         "grambank:GB312",
         "grambank:GB119"
       ],
-      "input_tokens": 2648,
-      "output_tokens": 16,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В русском языке нет тонов [V1][V2][V3].",
       "judged": true,
       "judge_reason": "The answer states that Russian has no tones, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 289,
-      "judge_output_tokens": 80
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "ind-33A",
@@ -682,14 +731,17 @@
         "grambank:GB031",
         "grambank:GB317"
       ],
-      "input_tokens": 2731,
-      "output_tokens": 54,
-      "answer": " В индонезийском языке множественное число существительных обычно образуется путём полной редупликации основы [V1]. При этом использование множественного числа всегда необязательно для всех существительных [V2]. Продуктивная морфологическая маркировка множественного числа на существительных отсутствует [V3].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В индонезийском языке множественное число существительных обычно образуется путём полной редупликации основы [V1]. При этом использование множественного числа во всех существительных является необязательным [V2]. Продуктивной морфологической маркировки множественного числа на существительных нет [V3].",
       "judged": true,
-      "judge_reason": "Ответ указывает на полную редупликацию основы, что соответствует записанному значению.",
+      "judge_reason": "The answer states plural is formed by complete reduplication of the stem, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 379,
-      "judge_output_tokens": 109
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "rus-117A",
@@ -717,14 +769,17 @@
         "grambank:GB432",
         "grambank:GB433"
       ],
-      "input_tokens": 2772,
-      "output_tokens": 73,
-      "answer": " В русском языке для выражения обладания не используется глагол «иметь» в основной конструкции [V2]. Вместо этого применяются другие стратегии, в частности — локативная конструкция (где используется локативный показатель для обозначения обладателя) [V1][V5][V6]. Также возможны конструкции с дательным падежом обладателя [V6][V3][V4].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В русском языке для выражения обладания не используется глагол «иметь» в основной конструкции [V2]. Вместо этого применяются другие типы конструкций, в том числе локативная (согласно WALS 117A [V1]), а также конструкции с дательным или локативным оформлением обладателя [V5][V6].",
       "judged": true,
-      "judge_reason": "The answer states that Russian uses a locative construction for possession, matching the recorded Locational Possessive value.",
+      "judge_reason": "The answer states that Russian uses a locative possessive construction, matching WALS 117A.",
       "judge_error": null,
-      "judge_input_tokens": 378,
-      "judge_output_tokens": 109
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "haw-1A",
@@ -752,14 +807,17 @@
         "grambank:GB432",
         "grambank:GB430"
       ],
-      "input_tokens": 2494,
-      "output_tokens": 74,
-      "answer": " Гавайский язык нельзя назвать богатым на согласные звуки. Согласно данным WALS [V1], он имеет небольшой набор согласных (small consonant inventory). Кроме того, в нём отсутствуют увулярные [V4] и глоттализованные согласные [V5], а среди боковых согласных присутствует только /l/, без обструентных боковых [V6].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Гавайский язык нельзя назвать богатым на согласные звуки: согласно WALS, он имеет небольшой набор согласных [V1]. Средний размер набора согласных в языках выборки — около 22 звуков, тогда как у гавайского он попадает в категорию «небольшой» (от 6 до 14 звуков) [T3]. Кроме того, в нём отсутствуют увулярные и глоттализованные согласные [V4][V5], а среди боковых согласных есть только /l/, без обструентных боковых [V6].",
       "judged": true,
-      "judge_reason": "The answer states Hawaiian has a small consonant inventory, matching the recorded value.",
+      "judge_reason": "The answer states Hawaiian has a small consonant inventory, matching the recorded WALS value 'Small'.",
       "judge_error": null,
-      "judge_input_tokens": 377,
-      "judge_output_tokens": 77
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "geo-1A",
@@ -787,14 +845,17 @@
         "grambank:GB432",
         "grambank:GB430"
       ],
-      "input_tokens": 2899,
-      "output_tokens": 84,
-      "answer": " Согласно данным WALS, грузинский язык имеет умеренно большой набор согласных звуков (26–33 согласных) [V1][T3]. В нём присутствуют такие сложные согласные, как увулярные (остановки и непрерывные) [V4] и эективные [V5], а также латеральные согласные (но без /l/ и обструентных латеральных) [V8].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Согласно данным WALS, грузинский язык имеет умеренно большой набор согласных звуков [V1]. В нём присутствуют такие сложные согласные, как увулярные (остановки и фрикативы) [V4] и эективы [V5], а также латеральные согласные (при этом нет звука /l/ и обструентных латеральных) [V8].",
       "judged": true,
-      "judge_reason": "The answer states Georgian has a moderately large consonant inventory, matching the database value.",
+      "judge_reason": "The answer states that Georgian has a moderately large consonant inventory, matching the database value.",
       "judge_error": null,
-      "judge_input_tokens": 384,
-      "judge_output_tokens": 88
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "eng-2A",
@@ -822,14 +883,17 @@
         "grambank:GB039",
         "wals:6A"
       ],
-      "input_tokens": 3031,
-      "output_tokens": 47,
-      "answer": " Согласно данным WALS, английский язык имеет большой набор гласных (7–14 фонем) [V1][T6][T7]. При этом точное число гласных фонем в источнике не указано — приведены лишь границы диапазона.",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Согласно данным WALS, английский язык имеет большой набор гласных (7–14 фонем) [V1]. В тексте [T6] отмечается, что слова вроде seat, sit, sate, set, sat, sot, soot, suit демонстрируют как минимум 8 различных гласных звуков; при учёте других наборов слов можно установить полный набор гласных, который варьируется в зависимости от варианта английского языка.",
       "judged": true,
-      "judge_reason": "The answer states the recorded WALS value: a large vowel inventory of 7–14 vowel phonemes.",
+      "judge_reason": "The answer states English has a large vowel inventory of 7–14, matching the database value.",
       "judge_error": null,
-      "judge_input_tokens": 344,
-      "judge_output_tokens": 109
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "jpn-85A",
@@ -857,14 +921,17 @@
         "grambank:GB127",
         "wals:144B"
       ],
-      "input_tokens": 3380,
-      "output_tokens": 82,
-      "answer": " В японском языке используются послелоги [V2][V4][V5]. Это подтверждается данными Grambank (отсутствие предлогов [V1], наличие послелогов [V2]) и WALS (постпозиционный тип расположения адпозиций [V4], постпозициональные клитики для падежных показателей [V5], тип порядка слов — объект-глагол с постпозициями [V3]).",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В японском языке используются послелоги [V2][V4][V5]. Данные подтверждаются значениями в Grambank (GB075) и WALS (85A, 95A, 51A) [V2][V4][V3][V5].",
       "judged": true,
       "judge_reason": "The answer states that Japanese uses postpositions, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 385,
-      "judge_output_tokens": 71
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "fra-87A",
@@ -892,14 +959,17 @@
         "grambank:GB025",
         "grambank:GB024"
       ],
-      "input_tokens": 2727,
-      "output_tokens": 47,
-      "answer": " Во французском языке прилагательное обычно стоит после существительного (NAdj) [V1][V2]. При этом, согласно данным Grambank, возможны оба порядка (и прилагательное до, и после существительного) [V3].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Во французском языке прилагательное обычно стоит после существительного (NAdj) [V1][V2]. При этом, согласно данным Grambank, возможен и обратный порядок — прилагательное перед существительным [V3].",
       "judged": true,
-      "judge_reason": "The answer states that the adjective usually follows the noun (NAdj), matching the recorded value.",
+      "judge_reason": "The answer states that French adjectives usually follow the noun (NAdj), matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 342,
-      "judge_output_tokens": 102
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "taga-GB028",
@@ -916,25 +986,28 @@
       "rewrite_ok": true,
       "complete": true,
       "error": null,
-      "query": "inclusive and exclusive first person plural pronouns",
+      "query": "inclusive and exclusive first person plural",
       "features": [
         "grambank:GB028",
+        "wals:40A",
         "grambank:GB031",
         "grambank:GB196",
-        "wals:39A",
         "wals:39B",
-        "wals:40A",
-        "grambank:GB313",
-        "grambank:GB318"
+        "wals:39A",
+        "grambank:GB301",
+        "grambank:GB109"
       ],
-      "input_tokens": 3936,
-      "output_tokens": 32,
-      "answer": " Да, тагальский различает инклюзивное и эксклюзивное «мы». Это подтверждается данными из Grambank [V1] и WALS [V4].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Да, тагальский различает инклюзивное и эксклюзивное «мы». Согласно данным WALS, в языке есть различие между инклюзивными и эксклюзивными формами в независимых местоимениях [V6]. В то же время в глагольном спряжении маркировка лица отсутствует [V2]. Также по данным Grambank в тагальском присутствует различие между инклюзивным и эксклюзивным первым лицом множественного числа [V1].",
       "judged": true,
       "judge_reason": "The answer states that Tagalog distinguishes inclusive and exclusive 'we', matching the recorded value 'present'.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "rus-GB020",
@@ -962,14 +1035,17 @@
         "grambank:GB023",
         "grambank:GB327"
       ],
-      "input_tokens": 2972,
-      "output_tokens": 16,
-      "answer": " В русском языке нет определённого артикля [V2][V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " По данным Grambank, в русском языке нет определённого артикля [V2].",
       "judged": true,
       "judge_reason": "The answer states that Russian has no definite article, matching the recorded value 'absent'.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "taga-GB081",
@@ -997,14 +1073,17 @@
         "grambank:GB122",
         "wals:22A"
       ],
-      "input_tokens": 3290,
-      "output_tokens": 20,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " Да, в тагальском есть продуктивные инфиксы в глаголах [V1].",
       "judged": true,
       "judge_reason": "The answer states that Tagalog has productive verb infixes, matching the recorded value 'present'.",
       "judge_error": null,
-      "judge_input_tokens": 311,
-      "judge_output_tokens": 47
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "ger-GB020",
@@ -1032,14 +1111,17 @@
         "grambank:GB023",
         "grambank:GB327"
       ],
-      "input_tokens": 4093,
-      "output_tokens": 58,
-      "answer": " По данным Grambank, значение по параметру наличия определённых или специфических артиклей для немецкого языка не записано [V2]. При этом по данным WALS немецкий язык относится к типу, где определённый артикль — отдельное слово, отличное от указательных [V1][T1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " По данным Grambank для немецкого языка нет значения по параметру «Есть ли определённые или специфические артикли» [V2]. При этом по данным WALS в немецком есть определённый артикль — отдельная словоформа, отличная от демонстративных слов [V1][T6][T7].",
       "judged": true,
-      "judge_reason": "The answer states that Grambank records no value for this feature for German, and the additional WALS information is not a Grambank value.",
+      "judge_reason": "The answer states that Grambank has no value for this feature, and the additional WALS information is not presented as a Grambank value.",
       "judge_error": null,
-      "judge_input_tokens": 363,
-      "judge_output_tokens": 207
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "ger-GB150",
@@ -1067,14 +1149,17 @@
         "grambank:GB330",
         "grambank:GB137"
       ],
-      "input_tokens": 2917,
-      "output_tokens": 24,
-      "answer": " В Grambank для немецкого языка нет данных о наличии цепочек клауз (clause chaining) [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В Grambank нет данных о наличии цепочек клауз в немецком языке [V1].",
       "judged": true,
-      "judge_reason": "The answer states that Grambank has no data on clause chaining for German, matching the no-value record.",
+      "judge_reason": "The answer correctly states that Grambank has no data for this feature in German.",
       "judge_error": null,
-      "judge_input_tokens": 319,
-      "judge_output_tokens": 58
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "kom-30A",
@@ -1102,14 +1187,17 @@
         "wals:32A",
         "grambank:GB030"
       ],
-      "input_tokens": 2518,
-      "output_tokens": 112,
-      "answer": " В коми-зырянском языке нет грамматического рода. Это подтверждается данными из Grambank: отсутствуют система классов существительных, где фактором присвоения класса является пол [V3], нет гендерного различия в самостоятельных местоимениях 3‑го лица [V8], а также нет согласования демонстративных местоимений с существительным по роду [V6]. Кроме того, в WALS и Grambank для ряда соответствующих признаков указано «нет данных» либо «отсутствует» применительно к коми-зырянскому [V1][V2][V5][V7].",
-      "judged": false,
-      "judge_reason": "The answer asserts that Komi-Zyrian has no grammatical gender, giving a value for a feature with no recorded database value.",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В коми-зырянском языке нет грамматического рода. Это подтверждается данными из Grambank: отсутствуют признаки системы родов/классов существительных — в том числе нет согласования демонстративных местоимений с существительными по роду (GB171 [V6]), нет гендерного различия в независимых местоимениях 3‑го лица (GB030 [V8]), нет системы, где пол является фактором присвоения класса (GB051 [V3]), нет непредсказуемых по фонетике или семантике классов существительных (GB321 [V2]) и т. д. В WALS для коми-зырянского также нет данных о числе родов (V5) и системах присвоения рода (V7).",
+      "judged": true,
+      "judge_reason": "The answer states that WALS has no data on number of genders for Komi-Zyrian, while its substantive claim comes from Grambank, not WALS.",
       "judge_error": null,
-      "judge_input_tokens": 432,
-      "judge_output_tokens": 173
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "mao-2A",
@@ -1137,14 +1225,17 @@
         "grambank:GB039",
         "wals:6A"
       ],
-      "input_tokens": 2784,
-      "output_tokens": 29,
-      "answer": " По данным WALS (feature 2A), в языке маори средний набор гласных фонем — 5–6 [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " По данным WALS (значение [V1]), в языке маори средний набор гласных фонем — 5–6.",
       "judged": true,
-      "judge_reason": "The answer states the recorded WALS value of an average vowel inventory of 5–6 for Maori.",
+      "judge_reason": "The answer states the recorded average vowel inventory of 5–6 for Maori.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "arb-81A",
@@ -1172,14 +1263,17 @@
         "wals:83A",
         "wals:82A"
       ],
-      "input_tokens": 2125,
-      "output_tokens": 34,
-      "answer": " Базовый порядок слов в литературном (стандартном) арабском — VSO (глагол — подлежащее — дополнение) [V1][V7][V8].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В литературном (современном стандартном) арабском базовый порядок слов — VSO (глагол — подлежащее — дополнение) [V1][V7][V8].",
       "judged": true,
       "judge_reason": "The answer states VSO, matching the recorded Verb-subject-object order.",
       "judge_error": null,
-      "judge_input_tokens": 343,
-      "judge_output_tokens": 53
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "fra-87A-b",
@@ -1207,14 +1301,17 @@
         "grambank:GB025",
         "grambank:GB024"
       ],
-      "input_tokens": 2736,
-      "output_tokens": 38,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В французском языке прилагательное следует за существительным [V1][V2]. Таким образом, перевод «красивый дом» будет начинаться с существительного: *une maison belle*.",
       "judged": true,
       "judge_reason": "The answer states that the adjective follows the noun, matching the recorded NAdj order.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "jpn-85A-b",
@@ -1242,14 +1339,17 @@
         "grambank:GB127",
         "wals:92A"
       ],
-      "input_tokens": 3152,
-      "output_tokens": 29,
-      "answer": " В японском языке предлоги (адпозиции) ставятся после существительного — используются постпозиции [V2][V4][V5].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В японском языке используются послелоги (postpositions), то есть они ставятся после существительного [V1][V2][V3][V4][V5].",
       "judged": true,
       "judge_reason": "The answer states that Japanese uses postpositions, matching the recorded value.",
       "judge_error": null,
-      "judge_input_tokens": 332,
-      "judge_output_tokens": 63
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "ind-81A",
@@ -1277,14 +1377,17 @@
         "wals:83A",
         "wals:82A"
       ],
-      "input_tokens": 2217,
-      "output_tokens": 56,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " Базовый порядок слов в индонезийском языке — SVO (подлежащее — сказуемое — дополнение) [V1][V7][V8]. Данные приведены для стандартного индонезийского языка (диалект stin1234) [V1].",
       "judged": true,
       "judge_reason": "The answer states SVO, matching the recorded value for the stin1234 dialect.",
       "judge_error": null,
-      "judge_input_tokens": 369,
-      "judge_output_tokens": 67
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "hin-49A",
@@ -1312,14 +1415,17 @@
         "grambank:GB316",
         "grambank:GB129"
       ],
-      "input_tokens": 2665,
-      "output_tokens": 18,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "answer": " В WALS нет данных о количестве падежей в хинди [V1].",
       "judged": true,
       "judge_reason": "The answer states that WALS has no data on the number of cases in Hindi, matching the no-value record.",
       "judge_error": null,
       "judge_input_tokens": 0,
-      "judge_output_tokens": 0
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "hix-GB020",
@@ -1347,14 +1453,17 @@
         "grambank:GB023",
         "grambank:GB327"
       ],
-      "input_tokens": 3038,
-      "output_tokens": 36,
-      "answer": " По данным Grambank, значение по признаку наличия определённых или специфических артиклей для языка хишкарьяна не известно (отмечено как «not known (?)») [V2].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " По данным Grambank, для языка хишкарьяна значение по признаку «Есть ли определённые или специфические артикли?» не известно (отмечено как «not known (?)») [V2].",
       "judged": true,
-      "judge_reason": "The answer correctly states that Grambank records the feature as not known (?) for Hixkaryana.",
+      "judge_reason": "The answer correctly states that the value is not known in Grambank for this feature.",
       "judge_error": null,
-      "judge_input_tokens": 344,
-      "judge_output_tokens": 75
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "tha-GB028",
@@ -1382,14 +1491,17 @@
         "grambank:GB313",
         "grambank:GB318"
       ],
-      "input_tokens": 3943,
-      "output_tokens": 64,
-      "answer": " По данным Grambank, для тайского языка не известно, различает ли он инклюзивное и эксклюзивное «мы» [V1]. Согласно WALS 39A, в тайском языке местоимение «мы» и «я» совпадают, то есть нет оппозиции инклюзив/эксклюзив [V4].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " По данным Grambank, для тайского языка не известно, различает ли он инклюзивное и эксклюзивное «мы» [V1]. Согласно WALS, в тайском языке нет различия между инклюзивным и эксклюзивным «мы» — местоимение для «мы» совпадает с местоимением для «я» [V4][T5].",
       "judged": true,
-      "judge_reason": "The answer correctly states that Grambank has no known value for Thai on inclusive/exclusive distinction, even though it adds a WALS claim.",
+      "judge_reason": "The answer correctly states that Grambank has no known value for Thai on this feature, while the additional WALS claim is not attributed to Grambank.",
       "judge_error": null,
-      "judge_input_tokens": 392,
-      "judge_output_tokens": 727
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "abk-GB028",
@@ -1417,14 +1529,17 @@
         "grambank:GB301",
         "grambank:GB109"
       ],
-      "input_tokens": 3650,
-      "output_tokens": 64,
-      "answer": " В абхазском языке есть различие инклюзивного и эксклюзивного «мы» в системе независимых местоимений [V6]. При этом в глагольном спряжении такого противопоставления нет [V2]. В базе Grambank значение по признаку наличия различия инклюзивного и эксклюзивного «мы» не установлено [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " В абхазском языке есть различие инклюзивного и эксклюзивного «мы» в системе независимых местоимений [V6], но отсутствует такое различие в глагольном спряжении [V2]. При этом в базе Grambank значение по признаку наличия различия инклюзивного и эксклюзивного «мы» отмечено как «не известно» [V1].",
       "judged": false,
-      "judge_reason": "The answer asserts that Abkhaz has an inclusive/exclusive distinction, rather than only saying the database value is unknown.",
+      "judge_reason": "The answer gives a substantive value for the feature (distinction in independent pronouns but not in verb conjugation), even though it also notes Grambank records it as unknown.",
       "judge_error": null,
-      "judge_input_tokens": 395,
-      "judge_output_tokens": 246
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "ru",
+      "answered_in": "ru",
+      "question_language": "Russian"
     },
     {
       "id": "en-swa-30A",
@@ -1441,25 +1556,28 @@
       "rewrite_ok": true,
       "complete": true,
       "error": null,
-      "query": "number of genders noun classes",
+      "query": "number of genders",
       "features": [
+        "wals:30A",
         "grambank:GB171",
         "grambank:GB321",
         "grambank:GB053",
         "grambank:GB177",
-        "grambank:GB170",
-        "grambank:GB198",
-        "wals:30A",
-        "grambank:GB051"
+        "grambank:GB196",
+        "grambank:GB030",
+        "wals:32A"
       ],
-      "input_tokens": 3343,
-      "output_tokens": 120,
-      "answer": " Yes, Swahili has a noun class system [V1][V3][V5][V6][V7]. According to WALS, it has five or more genders [V7]. The system involves agreement patterns: adnominal demonstratives, property words, and numerals can agree with nouns in noun class [V1][V5][V6]. Animacy is a factor in class assignment [V3], while sex is not [V8]. There is no large class of nouns whose noun class is not phonologically or semantically predictable [V2].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " Yes, Swahili has a noun class system (often referred to as gender in typological studies). It has five or more noun classes [V1]. Adnominal demonstratives agree with nouns in noun class [V2]. Animacy is a factor in class assignment [V4], and the system involves both semantic and formal assignment of classes [V8].",
       "judged": true,
-      "judge_reason": "The answer states Swahili has five or more genders, matching the recorded value.",
+      "judge_reason": "The answer states Swahili has five or more noun classes, matching the recorded value of five or more genders.",
       "judge_error": null,
-      "judge_input_tokens": 393,
-      "judge_output_tokens": 80
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "en",
+      "answered_in": "en",
+      "question_language": "English"
     },
     {
       "id": "en-jpn-81A",
@@ -1487,14 +1605,17 @@
         "wals:83A",
         "wals:82A"
       ],
-      "input_tokens": 2734,
-      "output_tokens": 95,
-      "answer": " The basic word order of Japanese is subject-object-verb (SOV) [V1][T6]. This is supported by examples such as «John ga tegami o yon-da» («John read the letter») [T6], as well as values in WALS features showing that the subject precedes the verb [V8], the object precedes the verb [V7], and the overall dominant order is SOV [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " The basic word order of Japanese is subject-object-verb (SOV) [V1][T6]. This is supported by examples such as “John ga tegami o yon-da” (“John read the letter”) [T6], and by WALS data showing Japanese as SOV [V1][V7][V8].",
       "judged": true,
-      "judge_reason": "The answer states Japanese basic word order is subject-object-verb (SOV), matching the database value.",
+      "judge_reason": "The answer states Japanese has subject-object-verb (SOV) word order, matching the database value.",
       "judge_error": null,
-      "judge_input_tokens": 371,
-      "judge_output_tokens": 59
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "en",
+      "answered_in": "en",
+      "question_language": "English"
     },
     {
       "id": "en-hin-49A",
@@ -1522,14 +1643,17 @@
         "grambank:GB316",
         "grambank:GB129"
       ],
-      "input_tokens": 2664,
-      "output_tokens": 21,
-      "answer": " According to WALS, no value is recorded for the number of cases in Hindi [V1].",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "answer": " There is no value recorded for the number of cases in Hindi according to WALS [V1].",
       "judged": true,
       "judge_reason": "The answer correctly states that WALS records no value for Hindi's number of cases.",
       "judge_error": null,
-      "judge_input_tokens": 300,
-      "judge_output_tokens": 59
+      "judge_input_tokens": 0,
+      "judge_output_tokens": 0,
+      "written_in": "en",
+      "answered_in": "en",
+      "question_language": "English"
     }
   ]
 }

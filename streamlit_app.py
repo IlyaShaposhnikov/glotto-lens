@@ -164,8 +164,9 @@ st.write(
     "Glottolog with a citation for every claim."
 )
 st.caption(
-    "Ask in English. Other languages work too, Russian among them: the answer comes in the "
-    "language of the question."
+    "Ask in English or in another language: the answer comes in the language of the question "
+    "(checked in English, Russian, Spanish, German, French, Portuguese, Italian, Chinese, "
+    "Japanese and Korean)."
 )
 
 ask_tab, evidence_tab = st.tabs(["Ask a question", "Browse evidence (no key needed)"])

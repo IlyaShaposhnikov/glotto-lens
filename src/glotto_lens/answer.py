@@ -30,6 +30,7 @@ from glotto_lens.context import (
     render_context,
 )
 from glotto_lens.documents import RELEASES
+from glotto_lens.langid import confident_language
 from glotto_lens.llm import APIS, CachedModel, ChatModel, Completion, ModelError, YandexModel
 from glotto_lens.sources import DATA_DIR, DB_PATH
 
@@ -49,7 +50,8 @@ class Rewrite:
     language: str | None
     query: str
     ok: bool = True  # False: the model's output could not be read, the question is searched
-    question_language: str | None = None  # the language the question is written in
+    # the language to answer in: read from the question when certain, else as the model named it
+    question_language: str | None = None
 
 
 @dataclass
@@ -117,11 +119,9 @@ def language_name(value) -> str | None:
     return value
 
 
-def question_language(question: str, rewrite: Rewrite) -> str | None:
+def answer_language(question: str, rewrite: Rewrite) -> str | None:
     """The language to answer in: read from the question itself when it is unambiguous,
     otherwise as the rewrite step named it."""
-    from glotto_lens.langid import confident_language
-
     return confident_language(question) or rewrite.question_language
 
 
@@ -198,7 +198,7 @@ def retrieve(
     )
     rewrite = parse_rewrite(rewrite_call.text, question)
     # the same reading for answers and retrieval-only runs, so reports agree
-    rewrite = replace(rewrite, question_language=question_language(question, rewrite))
+    rewrite = replace(rewrite, question_language=answer_language(question, rewrite))
     if language:  # keeps question_language: the answer is still in the question's language
         rewrite = replace(rewrite, language=language)
     context = build_context(conn, rewrite.query, rewrite.language, embedder=embedder)
@@ -232,7 +232,9 @@ def answer_question(
 
 
 def render_answer(answer: Answer, show_context: bool = False) -> str:
-    lines = [f"Search: {answer.rewrite.query!r}, language: {answer.rewrite.language!r}"]
+    lines = [f"Search: {answer.rewrite.query!r}, about: {answer.rewrite.language!r}"]
+    if answer.rewrite.question_language:
+        lines.append(f"Answer in: {answer.rewrite.question_language}")
     if not answer.rewrite.ok:
         lines.append("Warning: the rewrite could not be read; the question was searched as is.")
     lines += ["", answer.text.strip(), ""]
@@ -268,7 +270,11 @@ def log_answer(answer: Answer, model_name: str, path: Path | None = None) -> Non
         "model": model_name,
         "data": RELEASES,
         "question": answer.question,
-        "rewrite": {"language": answer.rewrite.language, "query": answer.rewrite.query},
+        "rewrite": {
+            "language": answer.rewrite.language,
+            "query": answer.rewrite.query,
+            "question_language": answer.rewrite.question_language,
+        },
         "rewrite_ok": answer.rewrite.ok,
         "glottocode": languoid.glottocode if languoid else None,
         "features": [evidence.feature_id for evidence in answer.context.evidence],
