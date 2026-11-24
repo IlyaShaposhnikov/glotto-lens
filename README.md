@@ -476,33 +476,31 @@ below, not tuned away: the held-out honesty figure is 6/9 by the phrase check.
 
 ## Project layout
 
-```text
-src/glotto_lens/
-  sources.py     pinned dataset releases, download, reading CLDF tables
-  database.py    build the SQLite database (atomic), sanity report
-  chapters.py    parse WALS chapter HTML into blocks
-  documents.py   searchable documents: chapter chunks, feature cards, distributions
-  search.py      FTS5 search with BM25, per-feature mode
-  vectors.py     embeddings in SQLite, vector search, hybrid fusion (reserved slots or RRF)
-  langchain_adapter.py  the pipeline as a LangChain retriever and LCEL chain (optional)
-  demo.py        what the web demo shows, as plain data
-  languages.py   name normalisation, language lookup, language profiles
-  langid.py      which language a question or answer is written in
-  context.py     evidence for a question: features, values, passages, labels
-  prompts.py     rewrite and answer prompts
-  llm.py         Yandex AI Studio client, disk cache, token log
-  answer.py      the pipeline: rewrite, retrieve, answer, citation check, answer log
-  evaluate.py    question set checks, metrics, reports
-  cli.py         the glotto-lens command
-streamlit_app.py       the web demo (optional)
-requirements.txt       dependencies for Streamlit Community Cloud
-eval/questions.jsonl   the question set
-eval/heldout.jsonl     the held-out question set
-eval/multilingual*.jsonl  questions in ten languages, for tuning and held out
-eval/reports/          the evaluation reports behind the results table
-docs/DATA.md           what the three databases contain, in figures from the build
-tests/                 pytest suite on small synthetic archives, no network or API key
-```
+The pipeline runs top to bottom: data is built once, then each question goes through
+retrieval and answering; evaluation and the interfaces sit on top.
+
+| Stage | File | What it does |
+|---|---|---|
+| **Data** | [`sources.py`](src/glotto_lens/sources.py) | pinned dataset releases, download, reading CLDF tables |
+| | [`database.py`](src/glotto_lens/database.py) | builds the SQLite database atomically, prints a sanity report |
+| | [`chapters.py`](src/glotto_lens/chapters.py) | parses WALS chapter HTML into blocks |
+| | [`documents.py`](src/glotto_lens/documents.py) | searchable documents: chapter chunks, feature cards, value distributions |
+| **Retrieval** | [`languages.py`](src/glotto_lens/languages.py) | name normalisation, language lookup, language profiles |
+| | [`search.py`](src/glotto_lens/search.py) | FTS5 search with BM25, one document per feature |
+| | [`vectors.py`](src/glotto_lens/vectors.py) | embeddings in SQLite, vector search, hybrid fusion |
+| | [`context.py`](src/glotto_lens/context.py) | the evidence: values [V], passages [T], their labels and URLs |
+| **Answering** | [`prompts.py`](src/glotto_lens/prompts.py) | rewrite, answer and judge prompts |
+| | [`llm.py`](src/glotto_lens/llm.py) | Yandex AI Studio client, disk cache, token log |
+| | [`langid.py`](src/glotto_lens/langid.py) | which language a question or an answer is written in |
+| | [`answer.py`](src/glotto_lens/answer.py) | the pipeline: rewrite, retrieve, answer, citation check, answer log |
+| **Evaluation** | [`evaluate.py`](src/glotto_lens/evaluate.py) | question set checks, metrics, LLM judge, reports |
+| | [`eval/`](eval) | question sets (tuning, held out, multilingual) and the reports behind every table |
+| **Interfaces** | [`cli.py`](src/glotto_lens/cli.py), [`cliargs.py`](src/glotto_lens/cliargs.py) | the `glotto-lens` command |
+| | [`langchain_adapter.py`](src/glotto_lens/langchain_adapter.py) | the pipeline as a LangChain retriever and LCEL chain (optional) |
+| | [`streamlit_app.py`](streamlit_app.py), [`demo.py`](src/glotto_lens/demo.py) | the web demo and what it shows, as plain data (optional) |
+| **Project** | [`tests/`](tests) | pytest suite on small synthetic archives, no network or API key |
+| | [`docs/DATA.md`](docs/DATA.md) | what the three databases contain, in figures from the build |
+| | [`requirements.txt`](requirements.txt) | pinned dependencies for Streamlit Community Cloud |
 
 The same checks as CI, to run before a commit (no network or API key needed):
 
