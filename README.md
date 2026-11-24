@@ -397,6 +397,39 @@ What the numbers say:
   concludes from Grambank that there is no gender; the phrase check passes it, the judge
   does not. On `fra-87A` it rejects "after the noun, and in both orders".
 
+## Summary
+
+**What works.** Every statement in an answer points to a record in WALS or Grambank, and
+code, not the model, checks that the record exists. With hybrid search, all 41 tuning
+questions find their feature, all 33 value answers cite the recorded value, and all 8
+no-data answers say so. On new questions the picture holds where it matters: 32/32
+features found and 23/23 values right on the held-out set, 25/25 answers in the language
+of the question on held-out questions in ten languages.
+
+**What made the difference.** Retrieval, not the model: almost every early failure was a
+feature that never reached the model, and ranking features instead of documents fixed most
+of them. The five answer models differ by at most one answer, and reasoning changed no
+verdict. Hybrid search added one question of 73. The largest single fix after that was
+not a prompt but a check: reading the question's language in code where the rewrite model
+was unreliable.
+
+**How the numbers can be trusted.** Expected values come from the database, not from hand;
+held-out sets were committed before their first run; every report records the commit, data
+releases and hashes of prompts, questions and metric code; an LLM judge cross-checks the
+code-based metrics, and every disagreement was read by hand. The weak spots are listed
+below, not tuned away: the held-out honesty figure is 6/9 by the phrase check.
+
+**What next**, roughly in order of value:
+
+- **Comparisons and general questions** ("Russian vs Polish", "which languages have tones"):
+  two languages per question, and the value distributions that are already indexed.
+- **A larger evaluation with repeats**, so that model differences come with intervals
+  instead of single runs.
+- **The embedding model's version in the vector keys**, so that an update of Yandex's
+  `latest` model triggers re-embedding instead of a note in Limitations.
+- **Language identification beyond twelve languages**, with a proper model instead of
+  function words, and an honesty check that does not depend on Russian and English phrases.
+
 ## Limitations
 
 - **Tuned on the test set, checked on a held-out set.** Retrieval settings, the rewrite
