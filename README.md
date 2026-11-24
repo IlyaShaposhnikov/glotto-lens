@@ -504,6 +504,8 @@ docs/DATA.md           what the three databases contain, in figures from the bui
 tests/                 pytest suite on small synthetic archives, no network or API key
 ```
 
+The same checks as CI, to run before a commit (no network or API key needed):
+
 ```bash
 ruff check . && ruff format --check . && pytest
 ```
