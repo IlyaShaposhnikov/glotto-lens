@@ -1,0 +1,25 @@
+{"id": "en-rus-81A", "question": "What is the basic word order of Russian?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:81A", "expect": "value", "written_in": "en"}
+{"id": "en-rus-13A", "question": "Does Russian have tones?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:13A", "expect": "value", "written_in": "en"}
+{"id": "en-eng-2A", "question": "How many vowel phonemes does English have?", "language": "English", "glottocode": "stan1293", "feature": "wals:2A", "expect": "value", "written_in": "en"}
+{"id": "ru-eng-37A", "question": "Есть ли в английском языке определённый артикль?", "language": "English", "glottocode": "stan1293", "feature": "wals:37A", "expect": "value", "written_in": "ru"}
+{"id": "ru-fra-87A", "question": "Где во французском стоит прилагательное относительно существительного?", "language": "French", "glottocode": "stan1290", "feature": "wals:87A", "expect": "value", "written_in": "ru"}
+{"id": "es-rus-87A", "question": "¿Cuál es el orden del sustantivo y el adjetivo en ruso?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:87A", "expect": "value", "written_in": "es"}
+{"id": "es-fin-49A", "question": "¿Cuántos casos gramaticales tiene el finés?", "language": "Finnish", "glottocode": "finn1318", "feature": "wals:49A", "expect": "value", "written_in": "es"}
+{"id": "es-spa-81A", "question": "¿Cuál es el orden básico de las palabras en español?", "language": "Spanish", "feature": "wals:81A", "expect": "value", "written_in": "es"}
+{"id": "de-rus-37A", "question": "Hat das Russische Artikel?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:37A", "expect": "value", "written_in": "de"}
+{"id": "de-jpn-81A", "question": "Welche Grundwortstellung hat das Japanische?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:81A", "expect": "value", "written_in": "de"}
+{"id": "de-deu-38A", "question": "Gibt es im Deutschen einen unbestimmten Artikel?", "language": "German", "glottocode": "stan1295", "feature": "wals:38A", "expect": "value", "written_in": "de"}
+{"id": "fr-rus-13A", "question": "Le russe est-il une langue à tons ?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:13A", "expect": "value", "written_in": "fr"}
+{"id": "fr-swa-30A", "question": "Combien de genres ou de classes nominales le swahili a-t-il ?", "language": "Swahili", "glottocode": "swah1253", "feature": "wals:30A", "expect": "value", "written_in": "fr"}
+{"id": "fr-fra-87A", "question": "En français, l'adjectif se place-t-il avant ou après le nom ?", "language": "French", "glottocode": "stan1290", "feature": "wals:87A", "expect": "value", "written_in": "fr"}
+{"id": "pt-rus-30A", "question": "Quantos gêneros gramaticais tem o russo?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:30A", "expect": "value", "written_in": "pt"}
+{"id": "pt-yor-13A", "question": "O iorubá é uma língua tonal?", "language": "Yoruba", "glottocode": "yoru1245", "feature": "wals:13A", "expect": "value", "written_in": "pt"}
+{"id": "pt-por-81A", "question": "Qual é a ordem básica das palavras em português?", "language": "Portuguese", "feature": "wals:81A", "expect": "value", "written_in": "pt"}
+{"id": "it-rus-81A", "question": "Qual è l'ordine di base delle parole in russo?", "language": "Russian", "glottocode": "russ1263", "feature": "wals:81A", "expect": "value", "written_in": "it"}
+{"id": "it-tur-30A", "question": "Il turco ha il genere grammaticale?", "language": "Turkish", "glottocode": "nucl1301", "feature": "wals:30A", "expect": "value", "written_in": "it"}
+{"id": "it-ita-87A", "question": "In italiano l'aggettivo viene prima o dopo il nome?", "language": "Italian", "feature": "wals:87A", "expect": "value", "written_in": "it"}
+{"id": "zh-jpn-81A", "question": "日语的基本语序是什么？", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:81A", "expect": "value", "written_in": "zh"}
+{"id": "zh-cmn-13A", "question": "普通话是声调语言吗？", "language": "Mandarin Chinese", "glottocode": "mand1415", "feature": "wals:13A", "expect": "value", "written_in": "zh"}
+{"id": "ja-fin-49A", "question": "フィンランド語には格がいくつありますか？", "language": "Finnish", "glottocode": "finn1318", "feature": "wals:49A", "expect": "value", "written_in": "ja"}
+{"id": "ja-jpn-85A", "question": "日本語には前置詞と後置詞のどちらがありますか？", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:85A", "expect": "value", "written_in": "ja"}
+{"id": "ko-jpn-85A", "question": "일본어에는 전치사가 있습니까, 후치사가 있습니까?", "language": "Japanese", "glottocode": "nucl1643", "feature": "wals:85A", "expect": "value", "written_in": "ko"}

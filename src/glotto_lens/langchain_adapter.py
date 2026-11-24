@@ -40,14 +40,15 @@ from glotto_lens import prompts, sources
 from glotto_lens.answer import (
     ANSWER_MAX_TOKENS,
     REWRITE_MAX_TOKENS,
+    answer_prompt,
     check_citations,
     mark_invalid,
     parse_rewrite,
+    question_language,
 )
 from glotto_lens.context import (
     Context,
     build_context,
-    render_context,
     text_citations,
     value_citations,
 )
@@ -148,12 +149,8 @@ def _rewrite_messages(inputs: dict) -> list[BaseMessage]:
 
 
 def _answer_messages(inputs: dict) -> list[BaseMessage]:
-    question = prompts.escape_tags(inputs["question"])
-    evidence = prompts.escape_tags(render_context(inputs["context"]))
-    return [
-        SystemMessage(prompts.ANSWER_SYSTEM),
-        HumanMessage(prompts.ANSWER_USER.format(question=question, evidence=evidence)),
-    ]
+    user = answer_prompt(inputs["question"], inputs["context"], inputs.get("question_language"))
+    return [SystemMessage(prompts.ANSWER_SYSTEM), HumanMessage(user)]
 
 
 def _runnable(model, max_tokens: int) -> Runnable:
@@ -192,7 +189,12 @@ def build_chain(
     def parse(inputs: dict) -> dict:
         rewrite = parse_rewrite(inputs["rewrite_text"], inputs["question"])
         language = inputs.get("language") or rewrite.language
-        return {"query": rewrite.query, "language": language, "rewrite_ok": rewrite.ok}
+        return {
+            "query": rewrite.query,
+            "language": language,
+            "question_language": question_language(inputs["question"], rewrite),
+            "rewrite_ok": rewrite.ok,
+        }
 
     def retrieve(inputs: dict) -> Context:
         return collect_context(inputs["query"], inputs["language"], db_path, hybrid)

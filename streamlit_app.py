@@ -176,7 +176,9 @@ with ask_tab:
     with st.form("ask_form"):
         question = st.text_input("Question", key="question", placeholder=demo.EXAMPLES[0])
         ask_language = st.text_input(
-            "Language (optional)", help="Overrides the language named in the question."
+            "Language to look up (optional)",
+            help="The language the facts are about; overrides the one named in the question. "
+            "The answer is written in the language of the question.",
         )
         asked = st.form_submit_button("Ask", type="primary")
     if asked:
@@ -217,15 +219,16 @@ with evidence_tab:
     )
     with st.form("evidence_form"):
         query = st.text_input("English search query", key="evidence_query")
-        evidence_language = st.text_input("Language (optional)", key="evidence_language")
+        evidence_language = st.text_input("Language to look up (optional)", key="evidence_language")
         searched = st.form_submit_button("Search", type="primary")
     use_vectors = hybrid and key is not None
     if hybrid and key is None:
         st.info("Hybrid search needs a key: searching with BM25 only.")
     previous = st.session_state.get("evidence_result")
+    picked = st.session_state.pop("run_evidence", False)  # popped on every run
     rerun = (
         searched
-        or st.session_state.pop("run_evidence", False)
+        or picked
         or previous is None  # the first visit shows an example
         or previous[1] != use_vectors  # the hybrid toggle changed
     )

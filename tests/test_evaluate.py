@@ -361,13 +361,16 @@ def test_retrieval_only_summary_does_not_score_citations(db_path, tmp_path, monk
     assert summary["answers without invalid citations"] == "- (no items to measure)"
 
 
-def test_experiment_identity_changes_with_the_prompts(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "name", ["REWRITE_SYSTEM", "REWRITE_USER", "ANSWER_SYSTEM", "ANSWER_USER", "ANSWER_IN"]
+)
+def test_experiment_identity_changes_with_the_prompts(tmp_path, monkeypatch, name):
     from glotto_lens import prompts
 
     path = tmp_path / "q.jsonl"
     path.write_text("{}", encoding="utf-8")
     before = evaluate_module.experiment_identity(path)
-    monkeypatch.setattr(prompts, "REWRITE_SYSTEM", prompts.REWRITE_SYSTEM + " changed")
+    monkeypatch.setattr(prompts, name, getattr(prompts, name) + " changed")
     assert evaluate_module.experiment_identity(path)["prompts_sha256"] != before["prompts_sha256"]
 
 
@@ -599,3 +602,20 @@ def test_rewrite_model_gives_every_answer_model_the_same_evidence(conn):
     answers = ScriptedModel("Да [V1].")  # only the answer: the rewrite is not asked of it
     (result,) = evaluate_module.evaluate(conn, answers, [RUSSIAN], rewrite_model=rewriter)
     assert result.correct is True and not rewriter.texts and not answers.texts
+
+
+def test_the_answer_language_metric_counts_only_readable_pairs():
+    from glotto_lens.evaluate import Score, summarize
+
+    def scored(written_in, answered_in):
+        return Score("x", "q", "value", "g", "v", written_in=written_in, answered_in=answered_in)
+
+    summary = summarize([scored("ru", "ru"), scored("ru", "en"), scored("es", None)])
+    assert summary["answers in the language of the question"] == "1/2 (50%)"
+
+
+def test_does_not_have_a_value_admits_missing_data():
+    from glotto_lens.evaluate import admits_missing_data
+
+    assert admits_missing_data("WALS does not have a value recorded for Hindi [V1].")
+    assert admits_missing_data("WALS has no value for Hindi [V1].")

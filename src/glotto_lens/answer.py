@@ -17,7 +17,7 @@ import sqlite3
 import sys
 import time
 from contextlib import closing
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from glotto_lens import prompts
@@ -49,6 +49,7 @@ class Rewrite:
     language: str | None
     query: str
     ok: bool = True  # False: the model's output could not be read, the question is searched
+    question_language: str | None = None  # the language the question is written in
 
 
 @dataclass
@@ -96,9 +97,43 @@ def parse_rewrite(text: str, question: str) -> Rewrite:
     language = language.strip() if isinstance(language, str) else None
     if not language or language.casefold() in NO_LANGUAGE:
         language = None
+    written_in = language_name(data.get("question_language"))
     if not isinstance(query, str) or not query.strip():
-        return Rewrite(language=language, query=question, ok=False)
-    return Rewrite(language=language, query=query.strip())
+        return Rewrite(language=language, query=question, ok=False, question_language=written_in)
+    return Rewrite(language=language, query=query.strip(), question_language=written_in)
+
+
+# A language name as the rewrite step gives it; anything else is dropped, so a question
+# cannot smuggle an instruction into the answer prompt through this field.
+LANGUAGE_NAME = re.compile(r"[^\W\d_][^\W\d_ '()-]*(?:[ '()-]+[^\W\d_]+)*\)?")
+
+
+def language_name(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if len(value) > 40 or len(value.split()) > 4 or not LANGUAGE_NAME.fullmatch(value):
+        return None
+    return value
+
+
+def question_language(question: str, rewrite: Rewrite) -> str | None:
+    """The language to answer in: read from the question itself when it is unambiguous,
+    otherwise as the rewrite step named it."""
+    from glotto_lens.langid import confident_language
+
+    return confident_language(question) or rewrite.question_language
+
+
+def answer_prompt(question: str, context: Context, question_language: str | None) -> str:
+    """The user prompt of the answer step, shared with the LangChain chain."""
+    user = prompts.ANSWER_USER.format(
+        question=prompts.escape_tags(question),
+        evidence=prompts.escape_tags(render_context(context)),
+    )
+    if question_language:
+        user += prompts.ANSWER_IN.format(language=question_language)
+    return user
 
 
 def cited_labels(text: str) -> list[str]:
@@ -162,8 +197,10 @@ def retrieve(
         max_tokens=REWRITE_MAX_TOKENS,
     )
     rewrite = parse_rewrite(rewrite_call.text, question)
-    if language:
-        rewrite = Rewrite(language=language, query=rewrite.query, ok=rewrite.ok)
+    # the same reading for answers and retrieval-only runs, so reports agree
+    rewrite = replace(rewrite, question_language=question_language(question, rewrite))
+    if language:  # keeps question_language: the answer is still in the question's language
+        rewrite = replace(rewrite, language=language)
     context = build_context(conn, rewrite.query, rewrite.language, embedder=embedder)
     return rewrite, context, rewrite_call
 
@@ -184,11 +221,9 @@ def answer_question(
     rewrite, context, rewrite_call = retrieve(
         conn, rewrite_model or model, question, language, embedder
     )
-    safe_question = prompts.escape_tags(question)
-    evidence = prompts.escape_tags(render_context(context))
     answer_call = model.complete(
         prompts.ANSWER_SYSTEM,
-        prompts.ANSWER_USER.format(question=safe_question, evidence=evidence),
+        answer_prompt(question, context, rewrite.question_language),
         max_tokens=ANSWER_MAX_TOKENS,
     )
     cited, invalid = check_citations(answer_call.text, context)

@@ -49,6 +49,7 @@ from glotto_lens import prompts
 from glotto_lens.answer import Answer, answer_question, first_json_object, retrieve
 from glotto_lens.cliargs import non_negative
 from glotto_lens.documents import RELEASES
+from glotto_lens.langid import written_language
 from glotto_lens.languages import KNOWN_FACTS, find_languages, language_profile
 from glotto_lens.llm import APIS, CachedModel, ChatModel, Completion, YandexModel
 from glotto_lens.sources import DATA_DIR, DB_PATH, read_only
@@ -73,7 +74,8 @@ MISSING_DATA = re.compile(
     r"\s+не (указ|зафиксир|приведен|записан|установлен)"
     r"|не удалось найти|не ?известн"
     r"|no (data|value|information)|not (record|known|available)"
-    r"|not (provide|give|list)\w* (a |any )?(value|data|information)",
+    r"|(has|have) no (recorded )?(value|data|information)"
+    r"|not (provide|give|list|have)\w* (a |any )?(value|data|information)",
     re.IGNORECASE,
 )
 # Punctuation inside quotes does not end a sentence: in "значение для признака «Are there
@@ -114,6 +116,7 @@ class Item:
     feature: str
     expect: str
     glottocode: str | None = None  # the languoid the language name must resolve to
+    written_in: str | None = None  # ISO 639-1 code of the question; default: detected
 
 
 @dataclass(frozen=True)
@@ -148,6 +151,9 @@ class Score:
     judge_error: str | None = None  # the judge call failed (network, API): no verdict to count
     judge_input_tokens: int = 0  # kept apart from the answer's tokens: runs stay comparable
     judge_output_tokens: int = 0
+    written_in: str | None = None  # the language of the question, ISO 639-1
+    answered_in: str | None = None  # the language of the answer, as langid reads it
+    question_language: str | None = None  # as the rewrite step named it for the answer
 
 
 def load_items(path: Path = QUESTIONS) -> list[Item]:
@@ -248,6 +254,9 @@ def score(item: Item, expected: Gold, answer: Answer) -> Score:
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         answer=answer.text,
+        written_in=item.written_in or written_language(item.question),
+        answered_in=written_language(answer.text),
+        question_language=answer.rewrite.question_language,
     )
 
 
@@ -270,6 +279,7 @@ def score_retrieval(item: Item, expected: Gold, rewrite, context, call) -> Score
         features=features,
         input_tokens=0 if call.cached else call.input_tokens,
         output_tokens=0 if call.cached else call.output_tokens,
+        question_language=rewrite.question_language,
     )
 
 
@@ -375,6 +385,10 @@ def summarize(scores: list[Score]) -> dict[str, str]:
         "honest about missing data": _share([s.honest for s in answered if s.honest is not None]),
         "answers without invalid citations": _share(
             [s.invalid_citations == 0 for s in answered if s.invalid_citations is not None]
+        ),
+        # items whose question or answer language cannot be read are left out
+        "answers in the language of the question": _share(
+            [s.answered_in == s.written_in for s in answered if s.written_in and s.answered_in]
         ),
         **_judge_summary(answered),
         "tokens (in / out)": (
@@ -528,7 +542,13 @@ def experiment_identity(
     """What a report depends on: the code commit, data releases, prompts, the question set,
     the metric, the retrieval settings and, with a judge, the judge prompts."""
     prompt_text = "".join(
-        (prompts.REWRITE_SYSTEM, prompts.REWRITE_USER, prompts.ANSWER_SYSTEM, prompts.ANSWER_USER)
+        (
+            prompts.REWRITE_SYSTEM,
+            prompts.REWRITE_USER,
+            prompts.ANSWER_SYSTEM,
+            prompts.ANSWER_USER,
+            prompts.ANSWER_IN,
+        )
     )
     identity = {
         "code": code_version(),
@@ -714,6 +734,7 @@ def main(
         stamp = time.strftime("%Y%m%d-%H%M%S")
         report = REPORTS / f"eval-{safe_name}-{stamp}-{time.time_ns() % 10**6:06d}.json"
         scores: list[Score] = []
+        summary: dict[str, str] = {}
         try:
             runs = evaluate_items(
                 conn,

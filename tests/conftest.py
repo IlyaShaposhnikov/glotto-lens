@@ -1,7 +1,18 @@
+import os
+
 import pytest
 from helpers import CHAPTER, GRAMBANK_DESCRIPTION, languoid, make_archive, structure
 
 from glotto_lens.database import build
+
+
+@pytest.fixture(autouse=True)
+def restore_environment():
+    """load_env() fills os.environ with setdefault, which monkeypatch does not undo."""
+    before = os.environ.copy()
+    yield
+    os.environ.clear()
+    os.environ.update(before)
 
 
 @pytest.fixture

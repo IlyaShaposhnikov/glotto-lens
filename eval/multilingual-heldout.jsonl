@@ -1,0 +1,25 @@
+{"id": "en-gre-26A", "question": "Is inflection in Greek mostly prefixing or suffixing?", "language": "Modern Greek", "glottocode": "mode1248", "feature": "wals:26A", "expect": "value", "written_in": "en"}
+{"id": "en-kor-85A", "question": "Does Korean have prepositions or postpositions?", "language": "Korean", "glottocode": "kore1280", "feature": "wals:85A", "expect": "value", "written_in": "en"}
+{"id": "ru-yue-13A", "question": "Является ли кантонский тоновым языком?", "language": "Cantonese", "glottocode": "yuec1235", "feature": "wals:13A", "expect": "value", "written_in": "ru"}
+{"id": "ru-swe-38A", "question": "Есть ли в шведском неопределённый артикль?", "language": "Swedish", "glottocode": "swed1254", "feature": "wals:38A", "expect": "value", "written_in": "ru"}
+{"id": "es-heb-37A", "question": "¿Tiene el hebreo moderno artículo definido?", "language": "Modern Hebrew", "glottocode": "hebr1245", "feature": "wals:37A", "expect": "value", "written_in": "es"}
+{"id": "es-zul-30A", "question": "¿Cuántas clases nominales tiene el zulú?", "language": "Zulu", "glottocode": "zulu1248", "feature": "wals:30A", "expect": "value", "written_in": "es"}
+{"id": "es-spa-38A", "question": "¿Tiene el español artículo indefinido?", "language": "Spanish", "glottocode": "stan1288", "feature": "wals:38A", "expect": "value", "written_in": "es"}
+{"id": "de-lit-33A", "question": "Wie wird im Litauischen der Plural der Substantive gebildet?", "language": "Lithuanian", "glottocode": "lith1251", "feature": "wals:33A", "expect": "value", "written_in": "de"}
+{"id": "de-swe-38A", "question": "Hat das Schwedische einen unbestimmten Artikel?", "language": "Swedish", "glottocode": "swed1254", "feature": "wals:38A", "expect": "value", "written_in": "de"}
+{"id": "de-deu-81A", "question": "Welche Grundwortstellung hat das Deutsche?", "language": "German", "glottocode": "stan1295", "feature": "wals:81A", "expect": "value", "written_in": "de"}
+{"id": "fr-hau-13A", "question": "Le haoussa a-t-il des tons ?", "language": "Hausa", "glottocode": "haus1257", "feature": "wals:13A", "expect": "value", "written_in": "fr"}
+{"id": "fr-pes-81A", "question": "Quel est l'ordre des mots de base en persan ?", "language": "Persian", "glottocode": "west2369", "feature": "wals:81A", "expect": "value", "written_in": "fr"}
+{"id": "fr-fra-37A", "question": "Le français a-t-il un article défini ?", "language": "French", "glottocode": "stan1290", "feature": "wals:37A", "expect": "value", "written_in": "fr"}
+{"id": "pt-pol-49A", "question": "Quantos casos tem o polonês?", "language": "Polish", "glottocode": "poli1260", "feature": "wals:49A", "expect": "value", "written_in": "pt"}
+{"id": "pt-kor-81A", "question": "Qual é a ordem básica das palavras em coreano?", "language": "Korean", "glottocode": "kore1280", "feature": "wals:81A", "expect": "value", "written_in": "pt"}
+{"id": "pt-spa-87A", "question": "Em espanhol, o adjetivo vem antes ou depois do substantivo?", "language": "Spanish", "glottocode": "stan1288", "feature": "wals:87A", "expect": "value", "written_in": "pt"}
+{"id": "pt-por-87A", "question": "Em português, o adjetivo vem antes ou depois do substantivo?", "language": "Portuguese", "glottocode": "port1283", "feature": "wals:87A", "expect": "value", "written_in": "pt"}
+{"id": "it-vie-13A", "question": "Il vietnamita è una lingua tonale?", "language": "Vietnamese", "glottocode": "viet1252", "feature": "wals:13A", "expect": "value", "written_in": "it"}
+{"id": "it-est-49A", "question": "Quanti casi ha l'estone?", "language": "Estonian", "glottocode": "esto1258", "feature": "wals:49A", "expect": "value", "written_in": "it"}
+{"id": "it-ita-81A", "question": "Qual è l'ordine di base delle parole in italiano?", "language": "Italian", "glottocode": "ital1282", "feature": "wals:81A", "expect": "value", "written_in": "it"}
+{"id": "zh-kor-81A", "question": "韩语的基本语序是什么？", "language": "Korean", "glottocode": "kore1280", "feature": "wals:81A", "expect": "value", "written_in": "zh"}
+{"id": "zh-yue-13A", "question": "粤语是声调语言吗？", "language": "Cantonese", "glottocode": "yuec1235", "feature": "wals:13A", "expect": "value", "written_in": "zh"}
+{"id": "ja-kor-85A", "question": "韓国語には前置詞と後置詞のどちらがありますか？", "language": "Korean", "glottocode": "kore1280", "feature": "wals:85A", "expect": "value", "written_in": "ja"}
+{"id": "ko-kor-81A", "question": "한국어의 기본 어순은 무엇입니까?", "language": "Korean", "glottocode": "kore1280", "feature": "wals:81A", "expect": "value", "written_in": "ko"}
+{"id": "ko-cmn-13A", "question": "중국어 표준어는 성조 언어입니까?", "language": "Mandarin Chinese", "glottocode": "mand1415", "feature": "wals:13A", "expect": "value", "written_in": "ko"}

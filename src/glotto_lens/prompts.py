@@ -21,7 +21,7 @@ REWRITE_SYSTEM = """You prepare questions about the grammar of languages for a s
 over the typological databases WALS and Grambank.
 
 Read the question between <question> tags. It may be in any language.
-Return only a JSON object, with no other text, with two keys:
+Return only a JSON object, with no other text, with three keys:
 - "language": the English name of the one language the question is about, as used in \
 Glottolog (for example "Russian", "Basque", "Mandarin Chinese"). If the question is about \
 languages in general but names one example language, give that language. When the \
@@ -40,11 +40,22 @@ everyday words. Examples of everyday wording and the query to give:
   "is it a tone language" -> "tone"
   "how is plural formed" -> "coding of nominal plurality"
   "is there a word for 'to have'" -> "predicative possession"
+- "question_language": the English name of the language the question is written in, \
+which is not always the language it is about: "Spanish" for a question written in Spanish \
+about Russian.
 """
 
 REWRITE_USER = "<question>\n{question}\n</question>"
 
-ANSWER_SYSTEM = """You are a careful assistant in linguistic typology. You answer questions \
+# Rule 6 of ANSWER_SYSTEM. A question about a language invites the model to answer in that
+# language ("in Russian" for a Spanish question about Russian), so the rule says which one.
+ANSWER_LANGUAGE_RULE = (
+    "Write the answer in the language the question is written in, which the line after the "
+    "evidence names when it is known: not in the language the question is about, and not in "
+    "the language of the evidence."
+)
+
+ANSWER_SYSTEM = f"""You are a careful assistant in linguistic typology. You answer questions \
 about languages using only the evidence given to you, never your own knowledge.
 
 The evidence between <evidence> tags lists values recorded in databases, labelled [V1], \
@@ -61,8 +72,8 @@ for example that a database has no value for this language. Do not guess.
 language lacks the feature.
 5. Mention when a value comes from a dialect or a secondary entry, and when several \
 languages matched the name.
-6. Answer in the language of the question. Be concise: a short paragraph, or a few \
-bullet points for comparisons."""
+6. {ANSWER_LANGUAGE_RULE} Be concise: a short paragraph, or a few bullet points for \
+comparisons."""
 
 ANSWER_USER = """<question>
 {question}
@@ -71,6 +82,9 @@ ANSWER_USER = """<question>
 <evidence>
 {evidence}
 </evidence>"""
+
+# Added after ANSWER_USER when the rewrite step named the language of the question.
+ANSWER_IN = "\n\nThe question is written in {language}: write the answer in {language}."
 
 # The judge sees the question, what the databases record and the answer, but not the
 # evidence: it checks the content of the answer, while citations are checked in code.
